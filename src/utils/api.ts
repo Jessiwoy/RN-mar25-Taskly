@@ -3,7 +3,7 @@ import { storage } from './storage';
 import { authService } from '../domain/auth';
 
 const api = axios.create({
-    baseURL: 'http://15.229.11.44:3000',
+    baseURL: 'http://15.228.147.147:3000',
     timeout: 10000,
 });
 

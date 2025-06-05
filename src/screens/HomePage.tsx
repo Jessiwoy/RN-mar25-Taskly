@@ -205,7 +205,9 @@ export default function HomePage() {
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{item.title}</Text>
           <TouchableOpacity style={styles.checkbox} onPress={() => toggleStatus(item.id)}>
-            {item.status === 'concluida' && <Image source={require('../assets/avatars/checkbox.png')} />}
+            {item.status === 'concluida' && (
+                <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/checkbox.png' }} />
+            )}
           </TouchableOpacity>
         </View>
         <Text style={styles.cardDescription}>{item.description}</Text>

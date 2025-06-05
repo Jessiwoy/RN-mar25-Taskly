@@ -7,7 +7,7 @@ Aplicativo mobile para gestão de tarefas. Com o Taskly, o usuário pode organiz
 ## 📚 Sumário
 
 - [Arquitetura do Projeto](#-arquitetura-do-projeto)
-- [Estrutura de Pastas](#-estrutura-de-pastas)
+- [Estrutura de Pastas](#-estrutura-de-pastas)\
 - [Tecnologias Utilizadas](#-tecnologias-utilizadas)
 - [Design e Temas](#-design-e-temas)
 - [Como Rodar o Projeto](#-como-rodar-o-projeto)
