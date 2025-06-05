@@ -1,23 +1,35 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { RootStackParamList } from '../navigation/types';
+'use client';
+
+import { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import type { RootStackParamList } from '../navigation/types';
 import { useRoute } from '@react-navigation/native';
-import { RouteProp } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { storage } from '../utils/storage';
 
 import Header from '../components/molecules/Header';
 import TabBar from '../components/molecules/TabBar';
+import { tasksService, type UpdateTaskDto, convertDtoToTask, formatDateForAPI, convertTaskToDto } from '../domain/tasks';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'TaskDetail'>;
-type EditTaskRouteProp = RouteProp<RootStackParamList, 'EditTask'>;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'TaskDetail'>
+type EditTaskRouteProp = RouteProp<RootStackParamList, 'EditTask'>
 
 function removeEmojis(text: string) {
   return text.replace(
     /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|\uFE0F|\u200D|[\u2600-\u26FF])/g,
-    ''
+    '',
   );
 }
 
@@ -32,16 +44,49 @@ function isValidDate(dateStr: string): boolean {
     return false;
   }
   const [_, dayStr, monthStr, yearStr] = dateStr.match(regex) || [];
-  const day = parseInt(dayStr, 10);
-  const month = parseInt(monthStr, 10) - 1; // meses são de 0 a 11
-  const year = parseInt(yearStr, 10);
+  const day = Number.parseInt(dayStr, 10);
+  const month = Number.parseInt(monthStr, 10) - 1; // meses são de 0 a 11
+  const year = Number.parseInt(yearStr, 10);
 
   const date = new Date(year, month, day);
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month &&
-    date.getDate() === day
-  );
+  return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day;
+}
+
+// Função para converter prioridade string para número
+function convertPriorityToNumber(priority: string): number | undefined {
+  switch (priority) {
+    case 'ALTA':
+      return 3;
+    case 'MEDIA':
+      return 2;
+    case 'BAIXA':
+      return 1;
+    default:
+      return undefined;
+  }
+}
+
+// Função para converter prioridade número para string (para exibição)
+function convertPriorityToString(priority: string | number | undefined): 'ALTA' | 'MEDIA' | 'BAIXA' | '' {
+  if (typeof priority === 'number') {
+    switch (priority) {
+      case 3:
+        return 'ALTA';
+      case 2:
+        return 'MEDIA';
+      case 1:
+        return 'BAIXA';
+      default:
+        return '';
+    }
+  }
+  if (typeof priority === 'string') {
+    const upperPriority = priority.toUpperCase();
+    if (upperPriority === 'ALTA' || upperPriority === 'MEDIA' || upperPriority === 'BAIXA') {
+      return upperPriority as 'ALTA' | 'MEDIA' | 'BAIXA';
+    }
+  }
+  return '';
 }
 
 export default function EditTaskScreen() {
@@ -52,79 +97,110 @@ export default function EditTaskScreen() {
   const [description, setDescription] = useState(task.description);
   const [tagInput, setTagInput] = useState('');
   const [tagsList, setTagsList] = useState<string[]>(task.tags || []);
+
+  // Verificar tanto priority quanto prioridade para compatibilidade
+  const initialPriority = (task as any).priority || task.prioridade;
   const [selectedPriority, setSelectedPriority] = useState<'ALTA' | 'MEDIA' | 'BAIXA' | ''>(
-    (task.prioridade as 'ALTA' | 'MEDIA' | 'BAIXA') || ''
+    convertPriorityToString(initialPriority),
   );
-  const [dueDate, setDueDate] = useState(task.prazo || '');
+
+  // Usar prazo como fallback se deadline não existir
+  const [dueDate, setDueDate] = useState(task.prazo || (task as any).deadline || '');
   const [dateError, setDateError] = useState('');
-
-
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAddTag = () => {
-    if (tagInput.trim() !== '' && !tagsList.includes(tagInput.trim())) {
-      setTagsList([...tagsList, tagInput.trim()]);
+    const trimmedTag = tagInput.trim();
+    if (trimmedTag !== '' && !tagsList.includes(trimmedTag)) {
+      const newTagsList = [...tagsList, trimmedTag];
+      setTagsList(newTagsList);
       setTagInput('');
+      console.log('Tag adicionada:', trimmedTag, 'Lista atual:', newTagsList);
     }
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    setTagsList(tagsList.filter(tag => tag !== tagToRemove));
+    const newTagsList = tagsList.filter((tag) => tag !== tagToRemove);
+    setTagsList(newTagsList);
+    console.log('Tag removida:', tagToRemove, 'Lista atual:', newTagsList);
   };
 
   const handleConfirmEdit = async () => {
     try {
-      const token = await storage.getToken();
-      if (!token) throw new Error('Token não encontrado');
+      if (isSubmitting) {return;}
+      setIsSubmitting(true);
 
-      // Dados que serão enviados para a API
-      const updatedAPIData = {
-        title,
-        description,
-        tags: tagsList,
-        done: task.done, // mantém o valor original
-      };
-
-      // Atualiza os dados no servidor
-      const response = await fetch(`http://15.229.11.44:3000/tasks/${task.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token,
-        },
-        body: JSON.stringify(updatedAPIData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar tarefa');
+      // Validar data se foi preenchida
+      if (dueDate && !isValidDate(dueDate)) {
+        setDateError('Data inválida');
+        setIsSubmitting(false);
+        return;
       }
 
-      // Dados locais que não estão na API
-      const updatedTask = {
-        ...task,
-        ...updatedAPIData,
-        prioridade: selectedPriority,
-        prazo: dueDate,
+      // Formatar a data para o formato esperado pela API
+      const formattedDeadline = dueDate ? formatDateForAPI(dueDate) : undefined;
+
+      // Converter prioridade para número
+      const priorityNumber = selectedPriority ? convertPriorityToNumber(selectedPriority) : undefined;
+
+      // Dados que serão enviados para a API usando o serviço centralizado
+      const updatedTaskData: UpdateTaskDto = {
+        title,
+        description,
+        tags: tagsList, // Usar a lista de tags atualizada
+        done: task.done, // mantém o valor original
+        priority: priorityNumber as any, // Enviar como número usando o campo "priority"
+        deadline: formattedDeadline, // Incluir deadline para a API
       };
 
-      navigation.navigate('TaskDetail', { task: updatedTask });
+      console.log('Enviando atualização para a API:', updatedTaskData);
+      console.log('Tags sendo enviadas:', tagsList);
+      console.log('Prioridade sendo enviada como priority:', priorityNumber);
 
+      // Atualiza os dados usando o serviço centralizado
+      const updatedTaskDto = await tasksService.updateTask(task.id, updatedTaskData);
+      console.log('Resposta da API:', updatedTaskDto);
+
+      // Converter a task original para DTO e depois mesclar com os dados atualizados
+      const originalTaskDto = convertTaskToDto(task);
+
+      // Criar TaskDto atualizado com tipos corretos
+      const finalTaskDto = {
+        ...originalTaskDto,
+        title: updatedTaskDto.title || title,
+        description: updatedTaskDto.description || description,
+        tags: tagsList, // Usar as tags do estado local
+        done: updatedTaskDto.done !== undefined ? updatedTaskDto.done : task.done,
+        status: updatedTaskDto.status || originalTaskDto.status,
+        priority: priorityNumber as any, // Usar a prioridade numérica no campo priority
+        prioridade: priorityNumber as any, // Manter também no campo prioridade para compatibilidade
+        prazo: dueDate || originalTaskDto.prazo,
+        deadline: formattedDeadline || updatedTaskDto.deadline,
+        // Manter outros campos da resposta da API
+        createdAt: updatedTaskDto.createdAt || originalTaskDto.createdAt,
+        updatedAt: updatedTaskDto.updatedAt,
+        subtasks: updatedTaskDto.subtasks || originalTaskDto.subtasks,
+      };
+
+      console.log('TaskDto final:', finalTaskDto);
+
+      // Navega de volta para a tela de detalhes com a tarefa atualizada
+      navigation.navigate('TaskDetail', { task: convertDtoToTask(finalTaskDto) });
     } catch (error) {
-      console.error(error);
+      console.error('Erro ao atualizar tarefa:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar a tarefa');
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-
 
   return (
     <View style={styles.viewOne}>
       <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
-        <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.screen}>
             {/* Header */}
             <View style={styles.container}>
@@ -155,6 +231,8 @@ export default function EditTaskScreen() {
                     value={tagInput}
                     autoCapitalize="characters"
                     onChangeText={(text) => setTagInput(text.replace(/\s/g, '').toUpperCase())}
+                    onSubmitEditing={handleAddTag}
+                    returnKeyType="done"
                   />
                   <TouchableOpacity onPress={handleAddTag} style={styles.tagAddButton}>
                     <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
@@ -162,8 +240,8 @@ export default function EditTaskScreen() {
                 </View>
 
                 <View style={styles.chips}>
-                  {tagsList.map((tag) => (
-                    <View key={tag} style={styles.chip}>
+                  {tagsList.map((tag, index) => (
+                    <View key={`${tag}-${index}`} style={styles.chip}>
                       <Text style={styles.chipText}>{tag}</Text>
                       <TouchableOpacity onPress={() => handleRemoveTag(tag)}>
                         <MaterialCommunityIcons name="close-circle" size={16} color="#C00" />
@@ -173,22 +251,14 @@ export default function EditTaskScreen() {
                 </View>
                 <Text style={styles.label}>Prioridade</Text>
                 <View style={styles.priorityContainer}>
-                  {['ALTA', 'MÉDIA', 'BAIXA'].map((level) => (
+                  {['ALTA', 'MEDIA', 'BAIXA'].map((level) => (
                     <TouchableOpacity
                       key={level}
-                      style={[
-                        styles.priorityOption,
-                        selectedPriority === level && styles.prioritySelected,
-                      ]}
+                      style={[styles.priorityOption, selectedPriority === level && styles.prioritySelected]}
                       onPress={() => setSelectedPriority(level as 'ALTA' | 'MEDIA' | 'BAIXA')}
                     >
-                      <Text
-                        style={[
-                          styles.priorityText,
-                          selectedPriority === level && styles.priorityTextSelected,
-                        ]}
-                      >
-                        {level}
+                      <Text style={[styles.priorityText, selectedPriority === level && styles.priorityTextSelected]}>
+                        {level === 'MEDIA' ? 'MÉDIA' : level}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -201,7 +271,7 @@ export default function EditTaskScreen() {
                     value={dueDate}
                     onChangeText={(text) => {
                       setDueDate(text);
-                      if (!isValidDate(text)) {
+                      if (text && !isValidDate(text)) {
                         setDateError('Data inválida');
                       } else {
                         setDateError('');
@@ -215,19 +285,18 @@ export default function EditTaskScreen() {
               {/* Botão Subtask */}
               <View style={styles.buttontouch}>
                 <TouchableOpacity
-                style={styles.subtaskButton1}
-                onPress={() => navigation.navigate('TaskDetail', { task })
-              }
+                  style={styles.subtaskButton1}
+                  onPress={() => navigation.navigate('TaskDetail', { task })}
                 >
-                <Text style={styles.subtaskButtonText1}>CANCELAR</Text>
+                  <Text style={styles.subtaskButtonText1}>CANCELAR</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.subtaskButton2}
+                  style={[styles.subtaskButton2, isSubmitting && styles.disabledButton]}
                   onPress={handleConfirmEdit}
+                  disabled={isSubmitting}
                 >
-                  <Text style={styles.subtaskButtonText2}>CONFIRMAR</Text>
+                  <Text style={styles.subtaskButtonText2}>{isSubmitting ? 'ENVIANDO...' : 'CONFIRMAR'}</Text>
                 </TouchableOpacity>
-
               </View>
             </View>
           </View>
@@ -247,7 +316,7 @@ const styles = StyleSheet.create({
   viewOne: {
     flex: 1,
   },
-  scroll:{
+  scroll: {
     flexGrow: 1,
     paddingBottom: 100,
   },
@@ -334,6 +403,7 @@ const styles = StyleSheet.create({
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    marginBottom: 8,
   },
   chip: {
     flexDirection: 'row',
@@ -398,6 +468,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#583CC4',
     paddingVertical: 7,
     paddingHorizontal: 20,
+  },
+  disabledButton: {
+    backgroundColor: '#9B8DD8',
   },
   subtaskButtonText1: {
     fontSize: 20,
