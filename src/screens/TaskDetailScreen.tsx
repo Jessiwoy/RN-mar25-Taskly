@@ -1,18 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Alert, ActivityIndicator, ScrollView } from 'react-native';
-import { RootStackParamList } from '../navigation/types';
+'use client';
+
+import { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+} from 'react-native';
+import type { RootStackParamList } from '../navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/native';
-import { TaskDetailRouteProp } from '../navigation/types';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { TaskDetailRouteProp } from '../navigation/types';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { storage } from '../utils/storage';
 
 import Header from '../components/molecules/Header';
 import TabBar from '../components/molecules/TabBar';
+import { tasksService, type TaskDto, type SubtaskDto, convertTaskToDto, convertDtoToTask } from '../domain/tasks';
 
-
-type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'TaskDetail'>;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'TaskDetail'>
 
 export default function TaskDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -22,33 +33,33 @@ export default function TaskDetailScreen() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [confirmedSubtasks, setConfirmedSubtasks] = useState<{ text: string; checked: boolean }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Converter o task original para TaskDto
+  const [currentTask, setCurrentTask] = useState<TaskDto>(convertTaskToDto(task));
 
   useEffect(() => {
     const fetchTaskDetails = async () => {
       try {
-        const token = await storage.getToken();
-        if (!token) throw new Error('Token não encontrado');
+        setIsLoading(true);
 
-        const response = await fetch('http://15.229.11.44:3000/tasks', {
-          headers: {
-            Authorization: 'Bearer ' + token,
-          },
-        });
-
-        const data = await response.json();
-        const foundTask = data.find((t: any) => t.id === task.id);
+        // Usando o serviço centralizado em vez de fetch direto
+        const foundTask = await tasksService.findTaskInList(task.id);
 
         if (foundTask?.subtasks) {
-          const formattedSubtasks = foundTask.subtasks.map((sub: any) => ({
+          const formattedSubtasks = foundTask.subtasks.map((sub: SubtaskDto) => ({
             text: sub.title,
             checked: sub.done,
           }));
           setConfirmedSubtasks(formattedSubtasks);
         }
+
+        if (foundTask) {
+          setCurrentTask(foundTask);
+        }
       } catch (error) {
         console.error('Erro ao carregar subtasks da API:', error);
+        Alert.alert('Erro', 'Não foi possível carregar os detalhes da tarefa');
       } finally {
-        setIsLoading(false); // <-- desliga loader
+        setIsLoading(false);
       }
     };
 
@@ -65,48 +76,33 @@ export default function TaskDetailScreen() {
     setSubtaskInputs(updatedInputs);
   };
 
-const confirmSubtask = async (index: number) => {
-  const inputText = subtaskInputs[index].trim();
-  if (!inputText) return;
+  const confirmSubtask = async (index: number) => {
+    const inputText = subtaskInputs[index].trim();
+    if (!inputText) {return;}
 
-  try {
-    const token = await storage.getToken();
-    if (!token) throw new Error('Token não encontrado');
+    try {
+      // Monta nova subtask
+      const newSubtask: SubtaskDto = { title: inputText, done: false };
 
-    // Monta nova subtask
-    const newSubtask = { title: inputText, done: false };
+      // Busca subtasks atuais e adiciona a nova
+      const updatedSubtasks = [...confirmedSubtasks.map((s) => ({ title: s.text, done: s.checked })), newSubtask];
 
-    // Busca subtasks atuais da API (se necessário, ou mantenha localmente com estado)
-    const updatedSubtasks = [...confirmedSubtasks.map(s => ({ title: s.text, done: s.checked })), newSubtask];
+      // Usa o serviço centralizado para atualizar
+      await tasksService.updateSubtasks(task.id, updatedSubtasks);
 
-    // Atualiza tarefa com novas subtasks
-    const response = await fetch(`http://15.229.11.44:3000/tasks/${task.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + token,
-      },
-      body: JSON.stringify({
-        subtasks: updatedSubtasks
-      }),
-    });
+      // Limpa input e atualiza estado local
+      const updatedInputs = [...subtaskInputs];
+      updatedInputs.splice(index, 1);
+      setSubtaskInputs(updatedInputs);
 
-    if (!response.ok) throw new Error('Erro ao criar subtask');
+      setConfirmedSubtasks((prev) => [...prev, { text: inputText, checked: false }]);
+    } catch (error) {
+      console.error('Erro ao enviar subtask para API:', error);
+      Alert.alert('Erro', 'Erro ao criar subtask');
+    }
+  };
 
-    // Limpa input e atualiza estado local
-    const updatedInputs = [...subtaskInputs];
-    updatedInputs.splice(index, 1);
-    setSubtaskInputs(updatedInputs);
-
-    setConfirmedSubtasks(prev => [...prev, { text: inputText, checked: false }]);
-
-  } catch (error) {
-    console.error('Erro ao enviar subtask para API:', error);
-    Alert.alert('Erro', 'Erro ao criar subtask');
-  }
-};
-
-  const toggleSubtaskChecked = (index: number) => {
+  const toggleSubtaskChecked = async (index: number) => {
     const updated = [...confirmedSubtasks];
 
     if (typeof updated[index] === 'object' && 'checked' in updated[index]) {
@@ -115,6 +111,18 @@ const confirmSubtask = async (index: number) => {
         checked: !updated[index].checked,
       };
       setConfirmedSubtasks(updated);
+
+      // Atualiza no backend
+      try {
+        const updatedSubtasks = updated.map((s) => ({ title: s.text, done: s.checked }));
+        await tasksService.updateSubtasks(task.id, updatedSubtasks);
+      } catch (error) {
+        console.error('Erro ao atualizar status da subtask:', error);
+        // Reverte o estado local em caso de erro
+        updated[index].checked = !updated[index].checked;
+        setConfirmedSubtasks([...updated]);
+        Alert.alert('Erro', 'Não foi possível atualizar a subtask');
+      }
     } else {
       console.warn('Formato inválido de subtask em:', updated[index]);
     }
@@ -122,22 +130,8 @@ const confirmSubtask = async (index: number) => {
 
   const deleteTask = async () => {
     try {
-      const token = await storage.getToken();
-      if (!token) {
-        Alert.alert('Erro', 'Token não encontrado.');
-        return;
-      }
-
-      const response = await fetch(`http://15.229.11.44:3000/tasks/${task.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: 'Bearer ' + token,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao deletar tarefa.');
-      }
+      // Usa o serviço centralizado para deletar
+      await tasksService.deleteTask(task.id);
 
       Alert.alert('Sucesso', 'Tarefa resolvida com sucesso!');
       navigation.reset({
@@ -150,21 +144,73 @@ const confirmSubtask = async (index: number) => {
     }
   };
 
+  const updateSubtaskText = async (index: number, newText: string) => {
+    try {
+      const updated = [...confirmedSubtasks];
+      updated[index].text = newText;
+      setConfirmedSubtasks(updated);
+
+      // Atualiza no backend
+      const updatedSubtasks = updated.map((s) => ({ title: s.text, done: s.checked }));
+      await tasksService.updateSubtasks(task.id, updatedSubtasks);
+    } catch (error) {
+      console.error('Erro ao atualizar texto da subtask:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar a subtask');
+    }
+  };
 
   const startEditing = (index: number) => {
     setEditingIndex(index);
   };
 
-  function getPriorityStyle(priority: string) {
-    switch (priority) {
-      case 'ALTA':
-        return { backgroundColor: '#32C25B' };
-      case 'MEDIA':
-        return { backgroundColor: '#32C25B' };
-      case 'BAIXA':
-        return { backgroundColor: '#32C25B' };
+  // Função para obter estilo da prioridade baseado no valor numérico
+  function getPriorityStyle(task: TaskDto) {
+    // Verificar tanto priority quanto prioridade
+    const priorityValue = (task as any).priority !== undefined ? (task as any).priority : task.prioridade;
+
+    console.log('Prioridade recebida:', priorityValue, 'Tipo:', typeof priorityValue);
+
+    if (priorityValue === undefined || priorityValue === null) {
+      return null;
+    }
+
+    // Converter para número se for string
+    let priorityNumber: number;
+    if (typeof priorityValue === 'string') {
+      priorityNumber = Number.parseInt(priorityValue, 10);
+      if (Number.isNaN(priorityNumber)) {
+        // Se não conseguir converter, tentar mapear strings
+        switch (priorityValue.toUpperCase()) {
+          case 'ALTA':
+            priorityNumber = 3;
+            break;
+          case 'MEDIA':
+          case 'MÉDIA':
+            priorityNumber = 2;
+            break;
+          case 'BAIXA':
+            priorityNumber = 1;
+            break;
+          default:
+            console.log('Prioridade string não reconhecida:', priorityValue);
+            return null;
+        }
+      }
+    } else {
+      priorityNumber = priorityValue;
+    }
+
+    // Mapear números para cores e textos
+    switch (priorityNumber) {
+      case 3:
+        return { backgroundColor: '#32C25B', text: 'ALTA' }; // Verde
+      case 2:
+        return { backgroundColor: '#FFD93D', text: 'MÉDIA' }; // Amarelo
+      case 1:
+        return { backgroundColor: '#FF6B6B', text: 'BAIXA' }; // Vermelho
       default:
-        return { backgroundColor: '#32C25B' };
+        console.log('Prioridade numérica não reconhecida:', priorityNumber);
+        return null;
     }
   }
 
@@ -190,23 +236,23 @@ const confirmSubtask = async (index: number) => {
             <View style={styles.card}>
               <TouchableOpacity
                 style={styles.editIcon}
-                onPress={() => navigation.navigate('EditTask', { task })}
+                onPress={() => navigation.navigate('EditTask', { task: convertDtoToTask(currentTask) })}
               >
                 <Image source={require('../assets/avatars/Vector1.png')} />
               </TouchableOpacity>
 
               <Text style={styles.label1}>Título</Text>
-              <Text style={styles.value}>{task.title}</Text>
+              <Text style={styles.value}>{currentTask.title}</Text>
 
               <Text style={styles.label}>Descrição</Text>
-              <Text style={styles.description}>{task.description}</Text>
+              <Text style={styles.description}>{currentTask.description}</Text>
 
               <Text style={styles.label}>Tags</Text>
-              {task.tags?.length > 0 ? (
+              {currentTask.tags && currentTask.tags.length > 0 ? (
                 <View style={styles.chips}>
-                  {task.tags.map((tag, index) => (
-                    <View key={index} style={styles.chip}>
-                      <Text style={styles.chipText}>{tag}</Text>
+                  {currentTask.tags.map((tag, index) => (
+                    <View key={index} style={styles.tagChip}>
+                      <Text style={styles.tagChipText}>{tag}</Text>
                     </View>
                   ))}
                 </View>
@@ -215,9 +261,11 @@ const confirmSubtask = async (index: number) => {
               )}
 
               <Text style={styles.label}>Prioridade</Text>
-              {task.prioridade ? (
-                <View style={[styles.priorityChip, getPriorityStyle(task.prioridade)]}>
-                  <Text style={styles.priorityChipText}>{task.prioridade.toUpperCase()}</Text>
+              {getPriorityStyle(currentTask) ? (
+                <View
+                  style={[styles.priorityChip, { backgroundColor: getPriorityStyle(currentTask)!.backgroundColor }]}
+                >
+                  <Text style={styles.priorityChipText}>{getPriorityStyle(currentTask)!.text}</Text>
                 </View>
               ) : (
                 <Text style={styles.emptyInfoText}>Sem prioridade definida</Text>
@@ -227,6 +275,7 @@ const confirmSubtask = async (index: number) => {
                 <Text style={styles.resolveButtonText}>RESOLVER TAREFA</Text>
               </TouchableOpacity>
             </View>
+
             {/* Inputs de novas subtasks */}
             {subtaskInputs.map((input, i) => (
               <View key={`input-${i}`} style={styles.subtaskInputContainer}>
@@ -240,17 +289,19 @@ const confirmSubtask = async (index: number) => {
                 </TouchableOpacity>
               </View>
             ))}
+
             {!isLoading && confirmedSubtasks.length === 0 && (
-            <TouchableOpacity onPress={addSubtaskInput} style={styles.subtaskButton}>
-              <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
-            </TouchableOpacity>
+              <TouchableOpacity onPress={addSubtaskInput} style={styles.subtaskButton}>
+                <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
+              </TouchableOpacity>
             )}
+
             <View style={styles.subtasksScrollArea}>
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.scrollContent}
-                >
+              >
                 {/* Subtasks confirmadas */}
                 {confirmedSubtasks.map((sub, i) => (
                   <View key={`confirmed-${i}`} style={styles.confirmedSubtask}>
@@ -267,19 +318,14 @@ const confirmSubtask = async (index: number) => {
                       <TextInput
                         style={styles.confirmedSubtaskText}
                         value={sub.text}
-                        onChangeText={(text) => {
-                          const updated = [...confirmedSubtasks];
-                          updated[i].text = text;
-                          setConfirmedSubtasks(updated);
-                        }}
+                        onChangeText={(text) => updateSubtaskText(i, text)}
                         autoFocus
+                        onBlur={() => setEditingIndex(null)}
                       />
                     ) : (
                       <Text style={styles.confirmedSubtaskText}>{sub.text}</Text>
                     )}
-                    <TouchableOpacity
-                      onPress={() => (editingIndex === i ? setEditingIndex(null) : startEditing(i))}
-                    >
+                    <TouchableOpacity onPress={() => (editingIndex === i ? setEditingIndex(null) : startEditing(i))}>
                       {editingIndex === i ? (
                         <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
                       ) : (
@@ -290,8 +336,9 @@ const confirmSubtask = async (index: number) => {
                 ))}
               </ScrollView>
             </View>
+
             {/* Botão Adicionar Subtask */}
-            {!isLoading && (confirmedSubtasks.length > 0) && (
+            {!isLoading && confirmedSubtasks.length > 0 && (
               <TouchableOpacity onPress={addSubtaskInput} style={styles.buttonFloating}>
                 <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
               </TouchableOpacity>
@@ -310,6 +357,7 @@ const confirmSubtask = async (index: number) => {
   );
 }
 
+// Mantendo os mesmos estilos do arquivo original com adições para tags e prioridades
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -372,6 +420,7 @@ const styles = StyleSheet.create({
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    marginTop: 4,
   },
   chip: {
     backgroundColor: '#E6E0F7',
@@ -386,22 +435,45 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto-Base',
     color: '#1E1E1E',
   },
+  // Estilos para tags cinzas
+  tagChip: {
+    backgroundColor: '#808080', // Cinza
+    marginRight: 8,
+    marginTop: 4,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  tagChipText: {
+    fontSize: 12,
+    fontFamily: 'Roboto-Base',
+    color: '#FFFFFF', // Letras brancas
+    fontWeight: '500',
+  },
+  // Estilos para prioridade
   priorityChip: {
-    backgroundColor: '#32C26B',
     marginTop: 4,
     alignSelf: 'flex-start',
     borderRadius: 8,
-    paddingVertical: 5,
-    paddingHorizontal: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   priorityChipText: {
     fontSize: 12,
     fontFamily: 'Roboto-Base',
-    color: '#FFFFFF',
+    color: '#FFFFFF', // Letras brancas para todas as prioridades
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   emptyInfoText: {
     fontStyle: 'italic',
     color: '#999',
+    marginTop: 4,
   },
   resolveButton: {
     marginTop: 14,
@@ -421,11 +493,6 @@ const styles = StyleSheet.create({
     maxHeight: 250,
     marginTop: 10,
     paddingBottom: 10,
-  },
-  subtasksContainer: {
-    flex: 1,
-    marginTop: 10,
-    paddingBottom: 90,
   },
   scrollContent: {
     flexGrow: 1,
@@ -471,13 +538,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto-Base',
     color: '#FFFFFF',
     textAlign: 'center',
-  },
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 10,
-    elevation: 8,
   },
   buttonFloating: {
     position: 'absolute',
