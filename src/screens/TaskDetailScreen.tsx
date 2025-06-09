@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Modal,
 } from 'react-native';
 import type { RootStackParamList } from '../navigation/types';
 import { useNavigation } from '@react-navigation/native';
@@ -35,10 +36,14 @@ export default function TaskDetailScreen() {
   const route = useRoute<TaskDetailRouteProp>();
   const { task } = route.params;
   const [subtaskInputs, setSubtaskInputs] = useState<string[]>([]);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [confirmedSubtasks, setConfirmedSubtasks] = useState<{ text: string; checked: boolean }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTask, setCurrentTask] = useState<TaskDto>(convertTaskToDto(task));
+
+  // Estados para o modal de edição
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
 
   useEffect(() => {
     const fetchTaskDetails = async () => {
@@ -234,8 +239,28 @@ export default function TaskDetailScreen() {
     }
   };
 
-  const startEditing = (index: number) => {
+  // Função para abrir o modal de edição
+  const openEditModal = (index: number) => {
     setEditingIndex(index);
+    setEditingText(confirmedSubtasks[index].text);
+    setIsEditModalVisible(true);
+  };
+
+  // Função para salvar a edição
+  const saveEdit = async () => {
+    if (editingIndex !== null && editingText.trim() !== '') {
+      await updateSubtaskText(editingIndex, editingText.trim());
+      setIsEditModalVisible(false);
+      setEditingIndex(null);
+      setEditingText('');
+    }
+  };
+
+  // Função para cancelar a edição
+  const cancelEdit = () => {
+    setIsEditModalVisible(false);
+    setEditingIndex(null);
+    setEditingText('');
   };
 
   function getPriorityStyle(task: TaskDto) {
@@ -301,120 +326,105 @@ export default function TaskDetailScreen() {
                 })
               }
             />
-
-            <View style={styles.card}>
-              <TouchableOpacity
-                style={styles.editIcon}
-                onPress={() => navigation.navigate('EditTask', { task: convertDtoToTask(currentTask) })}
-              >
-                <Image
-                  source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector1.png' }}
-                  style={{ width: 24, height: 24 }}
-                />
-              </TouchableOpacity>
-
-              <Text style={styles.label1}>Título</Text>
-              <Text style={styles.value}>{currentTask.title}</Text>
-
-              <Text style={styles.label}>Descrição</Text>
-              <Text style={styles.description}>{currentTask.description}</Text>
-
-              <Text style={styles.label}>Tags</Text>
-              {currentTask.tags && currentTask.tags.length > 0 ? (
-                <View style={styles.chips}>
-                  {currentTask.tags.map((tag, index) => (
-                    <View key={index} style={styles.tagChip}>
-                      <Text style={styles.tagChipText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.emptyInfoText}>Nenhuma tag adicionada</Text>
-              )}
-
-              <Text style={styles.label}>Prioridade</Text>
-              {getPriorityStyle(currentTask) ? (
-                <View
-                  style={[styles.priorityChip, { backgroundColor: getPriorityStyle(currentTask)!.backgroundColor }]}
+            <ScrollView
+              style={styles.mainScrollView}
+              contentContainerStyle={styles.mainScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.card}>
+                <TouchableOpacity
+                  style={styles.editIcon}
+                  onPress={() => navigation.navigate('EditTask', { task: convertDtoToTask(currentTask) })}
                 >
-                  <Text style={styles.priorityChipText}>{getPriorityStyle(currentTask)!.text}</Text>
-                </View>
-              ) : (
-                <Text style={styles.emptyInfoText}>Sem prioridade definida</Text>
-              )}
+                  <Image
+                    source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector1.png' }}
+                    style={{ width: 24, height: 24 }}
+                  />
+                </TouchableOpacity>
 
-              <TouchableOpacity style={styles.resolveButton} onPress={deleteTask}>
-                <Text style={styles.resolveButtonText}>RESOLVER TAREFA</Text>
-              </TouchableOpacity>
-            </View>
+                <Text style={styles.label1}>Título</Text>
+                <Text style={styles.value}>{currentTask.title}</Text>
 
-            {subtaskInputs.map((input, i) => (
-              <View key={`input-${i}`} style={styles.subtaskInputContainer}>
-                <TextInput
-                  value={input}
-                  placeholder="Digite a subtask"
-                  onChangeText={(text) => updateSubtaskInput(i, text)}
-                />
-                <TouchableOpacity onPress={() => confirmSubtask(i)}>
-                  <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
+                <Text style={styles.label}>Descrição</Text>
+                <Text style={styles.description}>{currentTask.description}</Text>
+
+                <Text style={styles.label}>Tags</Text>
+                {currentTask.tags && currentTask.tags.length > 0 ? (
+                  <View style={styles.chips}>
+                    {currentTask.tags.map((tag, index) => (
+                      <View key={index} style={styles.tagChip}>
+                        <Text style={styles.tagChipText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.emptyInfoText}>Nenhuma tag adicionada</Text>
+                )}
+
+                <Text style={styles.label}>Prioridade</Text>
+                {getPriorityStyle(currentTask) ? (
+                  <View
+                    style={[styles.priorityChip, { backgroundColor: getPriorityStyle(currentTask)!.backgroundColor }]}
+                  >
+                    <Text style={styles.priorityChipText}>{getPriorityStyle(currentTask)!.text}</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.emptyInfoText}>Sem prioridade definida</Text>
+                )}
+
+                <TouchableOpacity style={styles.resolveButton} onPress={deleteTask}>
+                  <Text style={styles.resolveButtonText}>RESOLVER TAREFA</Text>
                 </TouchableOpacity>
               </View>
-            ))}
 
-            {!isLoading && confirmedSubtasks.length === 0 && (
-              <TouchableOpacity onPress={addSubtaskInput} style={styles.subtaskButton}>
-                <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
-              </TouchableOpacity>
-            )}
+              {subtaskInputs.map((input, i) => (
+                <View key={`input-${i}`} style={styles.subtaskInputContainer}>
+                  <TextInput
+                    value={input}
+                    placeholder="Digite a subtask"
+                    onChangeText={(text) => updateSubtaskInput(i, text)}
+                  />
+                  <TouchableOpacity onPress={() => confirmSubtask(i)}>
+                    <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
+                  </TouchableOpacity>
+                </View>
+              ))}
 
-            <View style={styles.subtasksScrollArea}>
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.scrollContent}
-              >
-                {confirmedSubtasks.map((sub, i) => (
-                  <View key={`confirmed-${i}`} style={styles.confirmedSubtask}>
-                    {editingIndex !== i && (
-                      <TouchableOpacity onPress={() => toggleSubtaskChecked(i)}>
-                        <MaterialCommunityIcons
-                          name={sub.checked ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                          size={20}
-                          color={sub.checked ? '#32C25B' : '#B58B46'}
-                        />
-                      </TouchableOpacity>
-                    )}
-                    {editingIndex === i ? (
-                      <TextInput
-                        style={styles.confirmedSubtaskText}
-                        value={sub.text}
-                        onChangeText={(text) => updateSubtaskText(i, text)}
-                        autoFocus
-                        onBlur={() => setEditingIndex(null)}
-                      />
-                    ) : (
-                      <Text style={styles.confirmedSubtaskText}>{sub.text}</Text>
-                    )}
-                    <TouchableOpacity onPress={() => (editingIndex === i ? setEditingIndex(null) : startEditing(i))}>
-                      {editingIndex === i ? (
-                        <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
-                      ) : (
-                        <Image
-                          source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector.png' }}
-                          style={{ width: 24, height: 24 }}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
+              {!isLoading && confirmedSubtasks.length === 0 && (
+                <TouchableOpacity onPress={addSubtaskInput} style={styles.subtaskButton}>
+                  <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
+                </TouchableOpacity>
+              )}
 
-            {!isLoading && confirmedSubtasks.length > 0 && (
-              <TouchableOpacity onPress={addSubtaskInput} style={styles.buttonFloating}>
-                <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
-              </TouchableOpacity>
-            )}
+              {confirmedSubtasks.map((sub, i) => (
+                <View key={`confirmed-${i}`} style={styles.confirmedSubtask}>
+                  <TouchableOpacity onPress={() => toggleSubtaskChecked(i)}>
+                    <MaterialCommunityIcons
+                      name={sub.checked ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                      size={20}
+                      color={sub.checked ? '#32C25B' : '#B58B46'}
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.confirmedSubtaskText}>{sub.text}</Text>
+                  <TouchableOpacity onPress={() => openEditModal(i)}>
+                    <Image
+                      source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector.png' }}
+                      style={{ width: 24, height: 24 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {!isLoading && confirmedSubtasks.length > 0 && (
+                <TouchableOpacity onPress={addSubtaskInput} style={styles.addSubtaskButtonBottom}>
+                  <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Espaço extra no final para o TabBar */}
+              <View style={styles.bottomSpacer} />
+            </ScrollView>
           </View>
 
           <TabBar
@@ -422,6 +432,36 @@ export default function TaskDetailScreen() {
             onBellPress={() => console.log('Bell')}
             onMenuPress={() => console.log('Menu')}
           />
+
+          {/* Modal de Edição */}
+          <Modal visible={isEditModalVisible} transparent={true} animationType="slide" onRequestClose={cancelEdit}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContainer}>
+                <Text style={styles.modalTitle}>Editar Subtask</Text>
+
+                <TextInput
+                  style={styles.modalInput}
+                  value={editingText}
+                  onChangeText={setEditingText}
+                  placeholder="Digite o novo texto"
+                  autoFocus={true}
+                  multiline={false}
+                  returnKeyType="done"
+                  onSubmitEditing={saveEdit}
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.modalCancelButton} onPress={cancelEdit}>
+                    <Text style={styles.modalCancelText}>Cancelar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.modalSaveButton} onPress={saveEdit}>
+                    <Text style={styles.modalSaveText}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </>
       )}
     </View>
@@ -556,16 +596,6 @@ const styles = StyleSheet.create({
     color: '#5B3CC4',
     textAlign: 'center',
   },
-  subtasksScrollArea: {
-    flex: 1,
-    maxHeight: 250,
-    marginTop: 10,
-    paddingBottom: 10,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 20,
-  },
   subtaskInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -607,17 +637,88 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
   },
-  buttonFloating: {
-    position: 'absolute',
-    bottom: 70,
-    left: 27,
-    right: 27,
-    marginTop: 14,
+  // Estilos do Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'Roboto-Bold',
+    color: '#1E1E1E',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalInput: {
+    borderWidth: 2,
+    borderColor: '#5B3CC4',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    fontFamily: 'Roboto-Regular',
+    color: '#1E1E1E',
+    marginBottom: 20,
+    minHeight: 45,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  modalCancelButton: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: '#CCCCCC',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontFamily: 'Roboto-Regular',
+    color: '#666666',
+  },
+  modalSaveButton: {
+    flex: 1,
+    backgroundColor: '#583CC4',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalSaveText: {
+    fontSize: 16,
+    fontFamily: 'Roboto-Regular',
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  mainScrollView: {
+    flex: 1,
+  },
+  mainScrollContent: {
+    paddingBottom: 100, // Espaço para o TabBar
+  },
+  addSubtaskButtonBottom: {
+    marginTop: 20,
     backgroundColor: '#583CC4',
     borderRadius: 8,
     justifyContent: 'center',
-    paddingVertical: 2,
-    marginBottom: 0,
-    zIndex: 10,
+    paddingVertical: 12,
+  },
+  bottomSpacer: {
+    height: 20,
   },
 });

@@ -51,7 +51,7 @@ export function useUserProfile() {
     }
   };
 
-  const updateProfile = async (updatedData: { name: string; phone_number: string; email: string }) => {
+  const updateProfile = async (updatedData: { name: string; phone_number: string; email: string; picture: string }) => {
     try {
       const token = await storage.getToken();
 
@@ -60,6 +60,8 @@ export function useUserProfile() {
       await profileService.updateProfile({
         name: updatedData.name,
         phone_number: updatedData.phone_number,
+        email: updatedData.email,
+        picture: updatedData.picture,
       });
 
       console.log('✅ Perfil atualizado com sucesso via profileService');

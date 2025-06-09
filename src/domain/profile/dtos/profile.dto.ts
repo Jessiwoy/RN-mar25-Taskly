@@ -10,6 +10,7 @@ export type UpdateProfileRequestDTO = {
     picture?: string;
     name?: string,
     phone_number?: string,
+    email?: string,
 };
 
 export type UpdateProfileResponseDTO = {
