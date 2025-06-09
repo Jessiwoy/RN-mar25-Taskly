@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Modal,
 } from 'react-native';
 import type { RootStackParamList } from '../navigation/types';
 import { useNavigation } from '@react-navigation/native';
@@ -23,6 +24,10 @@ import Header from '../components/molecules/Header';
 import TabBar from '../components/molecules/TabBar';
 import { tasksService, type TaskDto, type SubtaskDto, convertTaskToDto, convertDtoToTask } from '../domain/tasks';
 
+const extractTaskDate = (taskObj: any): string | Date | undefined => {
+  return taskObj?.deadline || taskObj?.prazo || taskObj?.data || taskObj?.date || taskObj?.dueDate || taskObj?.due_date;
+};
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'TaskDetail'>
 
 export default function TaskDetailScreen() {
@@ -30,18 +35,18 @@ export default function TaskDetailScreen() {
   const route = useRoute<TaskDetailRouteProp>();
   const { task } = route.params;
   const [subtaskInputs, setSubtaskInputs] = useState<string[]>([]);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [confirmedSubtasks, setConfirmedSubtasks] = useState<{ text: string; checked: boolean }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // Converter o task original para TaskDto
   const [currentTask, setCurrentTask] = useState<TaskDto>(convertTaskToDto(task));
+
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
 
   useEffect(() => {
     const fetchTaskDetails = async () => {
       try {
         setIsLoading(true);
-
-        // Usando o serviço centralizado em vez de fetch direto
         const foundTask = await tasksService.findTaskInList(task.id);
 
         if (foundTask?.subtasks) {
@@ -66,6 +71,54 @@ export default function TaskDetailScreen() {
     fetchTaskDetails();
   }, [task.id]);
 
+  const formatDateForAPI = (date: Date | string | undefined): string => {
+    console.log('Data recebida para formatação:', date, 'Tipo:', typeof date);
+
+    if (!date) {
+      const today = new Date();
+      const day = today.getDate().toString().padStart(2, '0');
+      const month = (today.getMonth() + 1).toString().padStart(2, '0');
+      const year = today.getFullYear();
+      console.log('Usando data atual:', `${day}/${month}/${year}`);
+      return `${day}/${month}/${year}`;
+    }
+
+    let dateObj: Date;
+
+    if (typeof date === 'string') {
+      if (date.includes('/')) {
+        const parts = date.split('/');
+        if (parts.length === 3) {
+          dateObj = new Date(Number.parseInt(parts[2]), Number.parseInt(parts[1]) - 1, Number.parseInt(parts[0]));
+        } else {
+          dateObj = new Date(date);
+        }
+      } else if (date.includes('-')) {
+        dateObj = new Date(date);
+      } else {
+        dateObj = new Date(date);
+      }
+    } else if (date instanceof Date) {
+      dateObj = date;
+    } else {
+      console.log('Formato de data não reconhecido, usando data atual');
+      dateObj = new Date();
+    }
+
+    if (isNaN(dateObj.getTime())) {
+      console.log('Data inválida, usando data atual');
+      dateObj = new Date();
+    }
+
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const year = dateObj.getFullYear();
+
+    const formattedDate = `${day}/${month}/${year}`;
+    console.log('Data formatada:', formattedDate);
+    return formattedDate;
+  };
+
   const addSubtaskInput = () => {
     setSubtaskInputs([...subtaskInputs, '']);
   };
@@ -81,16 +134,29 @@ export default function TaskDetailScreen() {
     if (!inputText) {return;}
 
     try {
-      // Monta nova subtask
       const newSubtask: SubtaskDto = { title: inputText, done: false };
-
-      // Busca subtasks atuais e adiciona a nova
       const updatedSubtasks = [...confirmedSubtasks.map((s) => ({ title: s.text, done: s.checked })), newSubtask];
 
-      // Usa o serviço centralizado para atualizar
-      await tasksService.updateSubtasks(task.id, updatedSubtasks);
+      console.log('currentTask completo:', currentTask);
+      console.log('currentTask.deadline:', currentTask.deadline);
+      console.log('currentTask.prazo:', currentTask.prazo);
+      console.log('task original:', task);
 
-      // Limpa input e atualiza estado local
+      const taskDeadline = extractTaskDate(currentTask) || extractTaskDate(task);
+
+      console.log('Data encontrada:', taskDeadline);
+
+      const formattedDeadline = formatDateForAPI(taskDeadline);
+
+      const updateData = {
+        subtasks: updatedSubtasks,
+        deadline: formattedDeadline,
+      };
+
+      console.log('Enviando dados para API:', updateData);
+
+      await tasksService.updateSubtasks(task.id, updatedSubtasks, formattedDeadline);
+
       const updatedInputs = [...subtaskInputs];
       updatedInputs.splice(index, 1);
       setSubtaskInputs(updatedInputs);
@@ -98,7 +164,7 @@ export default function TaskDetailScreen() {
       setConfirmedSubtasks((prev) => [...prev, { text: inputText, checked: false }]);
     } catch (error) {
       console.error('Erro ao enviar subtask para API:', error);
-      Alert.alert('Erro', 'Erro ao criar subtask');
+      Alert.alert('Erro', 'Erro ao criar subtask. Verifique se a tarefa possui uma data válida.');
     }
   };
 
@@ -112,13 +178,13 @@ export default function TaskDetailScreen() {
       };
       setConfirmedSubtasks(updated);
 
-      // Atualiza no backend
       try {
         const updatedSubtasks = updated.map((s) => ({ title: s.text, done: s.checked }));
-        await tasksService.updateSubtasks(task.id, updatedSubtasks);
+        const deadline = formatDateForAPI(extractTaskDate(currentTask));
+
+        await tasksService.updateSubtasks(task.id, updatedSubtasks, deadline);
       } catch (error) {
         console.error('Erro ao atualizar status da subtask:', error);
-        // Reverte o estado local em caso de erro
         updated[index].checked = !updated[index].checked;
         setConfirmedSubtasks([...updated]);
         Alert.alert('Erro', 'Não foi possível atualizar a subtask');
@@ -128,15 +194,29 @@ export default function TaskDetailScreen() {
     }
   };
 
+  const updateSubtaskText = async (index: number, newText: string) => {
+    try {
+      const updated = [...confirmedSubtasks];
+      updated[index].text = newText;
+      setConfirmedSubtasks(updated);
+
+      const updatedSubtasks = updated.map((s) => ({ title: s.text, done: s.checked }));
+      const deadline = formatDateForAPI(extractTaskDate(currentTask));
+
+      await tasksService.updateSubtasks(task.id, updatedSubtasks, deadline);
+    } catch (error) {
+      console.error('Erro ao atualizar texto da subtask:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar a subtask');
+    }
+  };
+
   const deleteTask = async () => {
     try {
-      // Usa o serviço centralizado para deletar
       await tasksService.deleteTask(task.id);
-
       Alert.alert('Sucesso', 'Tarefa resolvida com sucesso!');
       navigation.reset({
         index: 0,
-        routes: [{ name: 'HomePage' }],
+        routes: [{ name: 'TaskStack' }],
       });
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível resolver a tarefa.');
@@ -144,28 +224,28 @@ export default function TaskDetailScreen() {
     }
   };
 
-  const updateSubtaskText = async (index: number, newText: string) => {
-    try {
-      const updated = [...confirmedSubtasks];
-      updated[index].text = newText;
-      setConfirmedSubtasks(updated);
+  const openEditModal = (index: number) => {
+    setEditingIndex(index);
+    setEditingText(confirmedSubtasks[index].text);
+    setIsEditModalVisible(true);
+  };
 
-      // Atualiza no backend
-      const updatedSubtasks = updated.map((s) => ({ title: s.text, done: s.checked }));
-      await tasksService.updateSubtasks(task.id, updatedSubtasks);
-    } catch (error) {
-      console.error('Erro ao atualizar texto da subtask:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar a subtask');
+  const saveEdit = async () => {
+    if (editingIndex !== null && editingText.trim() !== '') {
+      await updateSubtaskText(editingIndex, editingText.trim());
+      setIsEditModalVisible(false);
+      setEditingIndex(null);
+      setEditingText('');
     }
   };
 
-  const startEditing = (index: number) => {
-    setEditingIndex(index);
+  const cancelEdit = () => {
+    setIsEditModalVisible(false);
+    setEditingIndex(null);
+    setEditingText('');
   };
 
-  // Função para obter estilo da prioridade baseado no valor numérico
   function getPriorityStyle(task: TaskDto) {
-    // Verificar tanto priority quanto prioridade
     const priorityValue = (task as any).priority !== undefined ? (task as any).priority : task.prioridade;
 
     console.log('Prioridade recebida:', priorityValue, 'Tipo:', typeof priorityValue);
@@ -174,12 +254,10 @@ export default function TaskDetailScreen() {
       return null;
     }
 
-    // Converter para número se for string
     let priorityNumber: number;
     if (typeof priorityValue === 'string') {
       priorityNumber = Number.parseInt(priorityValue, 10);
       if (Number.isNaN(priorityNumber)) {
-        // Se não conseguir converter, tentar mapear strings
         switch (priorityValue.toUpperCase()) {
           case 'ALTA':
             priorityNumber = 3;
@@ -200,14 +278,13 @@ export default function TaskDetailScreen() {
       priorityNumber = priorityValue;
     }
 
-    // Mapear números para cores e textos
     switch (priorityNumber) {
       case 3:
-        return { backgroundColor: '#32C25B', text: 'ALTA' }; // Verde
+        return { backgroundColor: '#32C25B', text: 'ALTA' };
       case 2:
-        return { backgroundColor: '#FFD93D', text: 'MÉDIA' }; // Amarelo
+        return { backgroundColor: '#FFD93D', text: 'MÉDIA' };
       case 1:
-        return { backgroundColor: '#FF6B6B', text: 'BAIXA' }; // Vermelho
+        return { backgroundColor: '#FF6B6B', text: 'BAIXA' };
       default:
         console.log('Prioridade numérica não reconhecida:', priorityNumber);
         return null;
@@ -222,145 +299,157 @@ export default function TaskDetailScreen() {
         </View>
       ) : (
         <>
-          {/* Header e Conteúdo */}
           <View style={styles.container}>
             <Header
               onBack={() =>
                 navigation.reset({
                   index: 0,
-                  routes: [{ name: 'HomePage' }],
+                  routes: [{ name: 'TaskStack' }],
                 })
               }
             />
-
-            <View style={styles.card}>
-              <TouchableOpacity
-                style={styles.editIcon}
-                onPress={() => navigation.navigate('EditTask', { task: convertDtoToTask(currentTask) })}
-              >
-                <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector1.png' }}
-                       style={{ width: 24, height: 24 }}
-                />
-              </TouchableOpacity>
-
-              <Text style={styles.label1}>Título</Text>
-              <Text style={styles.value}>{currentTask.title}</Text>
-
-              <Text style={styles.label}>Descrição</Text>
-              <Text style={styles.description}>{currentTask.description}</Text>
-
-              <Text style={styles.label}>Tags</Text>
-              {currentTask.tags && currentTask.tags.length > 0 ? (
-                <View style={styles.chips}>
-                  {currentTask.tags.map((tag, index) => (
-                    <View key={index} style={styles.tagChip}>
-                      <Text style={styles.tagChipText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.emptyInfoText}>Nenhuma tag adicionada</Text>
-              )}
-
-              <Text style={styles.label}>Prioridade</Text>
-              {getPriorityStyle(currentTask) ? (
-                <View
-                  style={[styles.priorityChip, { backgroundColor: getPriorityStyle(currentTask)!.backgroundColor }]}
+            <ScrollView
+              style={styles.mainScrollView}
+              contentContainerStyle={styles.mainScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.card}>
+                <TouchableOpacity
+                  style={styles.editIcon}
+                  onPress={() => navigation.navigate('EditTask', { task: convertDtoToTask(currentTask) })}
                 >
-                  <Text style={styles.priorityChipText}>{getPriorityStyle(currentTask)!.text}</Text>
-                </View>
-              ) : (
-                <Text style={styles.emptyInfoText}>Sem prioridade definida</Text>
-              )}
+                  <Image
+                    source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector1.png' }}
+                    style={{ width: 24, height: 24 }}
+                  />
+                </TouchableOpacity>
 
-              <TouchableOpacity style={styles.resolveButton} onPress={deleteTask}>
-                <Text style={styles.resolveButtonText}>RESOLVER TAREFA</Text>
-              </TouchableOpacity>
-            </View>
+                <Text style={styles.label1}>Título</Text>
+                <Text style={styles.value}>{currentTask.title}</Text>
 
-            {/* Inputs de novas subtasks */}
-            {subtaskInputs.map((input, i) => (
-              <View key={`input-${i}`} style={styles.subtaskInputContainer}>
-                <TextInput
-                  value={input}
-                  placeholder="Digite a subtask"
-                  onChangeText={(text) => updateSubtaskInput(i, text)}
-                />
-                <TouchableOpacity onPress={() => confirmSubtask(i)}>
-                  <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
+                <Text style={styles.label}>Descrição</Text>
+                <Text style={styles.description}>{currentTask.description}</Text>
+
+                <Text style={styles.label}>Tags</Text>
+                {currentTask.tags && currentTask.tags.length > 0 ? (
+                  <View style={styles.chips}>
+                    {currentTask.tags.map((tag, index) => (
+                      <View key={index} style={styles.tagChip}>
+                        <Text style={styles.tagChipText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.emptyInfoText}>Nenhuma tag adicionada</Text>
+                )}
+
+                <Text style={styles.label}>Prioridade</Text>
+                {getPriorityStyle(currentTask) ? (
+                  <View
+                    style={[styles.priorityChip, { backgroundColor: getPriorityStyle(currentTask)!.backgroundColor }]}
+                  >
+                    <Text style={styles.priorityChipText}>{getPriorityStyle(currentTask)!.text}</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.emptyInfoText}>Sem prioridade definida</Text>
+                )}
+
+                <TouchableOpacity style={styles.resolveButton} onPress={deleteTask}>
+                  <Text style={styles.resolveButtonText}>RESOLVER TAREFA</Text>
                 </TouchableOpacity>
               </View>
-            ))}
 
-            {!isLoading && confirmedSubtasks.length === 0 && (
-              <TouchableOpacity onPress={addSubtaskInput} style={styles.subtaskButton}>
-                <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
-              </TouchableOpacity>
-            )}
+              {subtaskInputs.map((input, i) => (
+                <View key={`input-${i}`} style={styles.subtaskInputContainer}>
+                  <TextInput
+                    value={input}
+                    placeholder="Digite a subtask"
+                    onChangeText={(text) => updateSubtaskInput(i, text)}
+                  />
+                  <TouchableOpacity onPress={() => confirmSubtask(i)}>
+                    <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
+                  </TouchableOpacity>
+                </View>
+              ))}
 
-            <View style={styles.subtasksScrollArea}>
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.scrollContent}
-              >
-                {/* Subtasks confirmadas */}
-                {confirmedSubtasks.map((sub, i) => (
-                  <View key={`confirmed-${i}`} style={styles.confirmedSubtask}>
-                    {editingIndex !== i && (
-                      <TouchableOpacity onPress={() => toggleSubtaskChecked(i)}>
-                        <MaterialCommunityIcons
-                          name={sub.checked ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                          size={20}
-                          color={sub.checked ? '#32C25B' : '#B58B46'}
-                        />
-                      </TouchableOpacity>
-                    )}
-                    {editingIndex === i ? (
-                      <TextInput
-                        style={styles.confirmedSubtaskText}
-                        value={sub.text}
-                        onChangeText={(text) => updateSubtaskText(i, text)}
-                        autoFocus
-                        onBlur={() => setEditingIndex(null)}
-                      />
-                    ) : (
-                      <Text style={styles.confirmedSubtaskText}>{sub.text}</Text>
-                    )}
-                    <TouchableOpacity onPress={() => (editingIndex === i ? setEditingIndex(null) : startEditing(i))}>
-                      {editingIndex === i ? (
-                        <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
-                      ) : (
-                        <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector.png' }}
-                               style={{ width: 24, height: 24 }} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
+              {!isLoading && confirmedSubtasks.length === 0 && (
+                <TouchableOpacity onPress={addSubtaskInput} style={styles.subtaskButton}>
+                  <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
+                </TouchableOpacity>
+              )}
 
-            {/* Botão Adicionar Subtask */}
-            {!isLoading && confirmedSubtasks.length > 0 && (
-              <TouchableOpacity onPress={addSubtaskInput} style={styles.buttonFloating}>
-                <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
-              </TouchableOpacity>
-            )}
+              {confirmedSubtasks.map((sub, i) => (
+                <View key={`confirmed-${i}`} style={styles.confirmedSubtask}>
+                  <TouchableOpacity onPress={() => toggleSubtaskChecked(i)}>
+                    <MaterialCommunityIcons
+                      name={sub.checked ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                      size={20}
+                      color={sub.checked ? '#32C25B' : '#B58B46'}
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.confirmedSubtaskText}>{sub.text}</Text>
+                  <TouchableOpacity onPress={() => openEditModal(i)}>
+                    <Image
+                      source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector.png' }}
+                      style={{ width: 24, height: 24 }}
+                    />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {!isLoading && confirmedSubtasks.length > 0 && (
+                <TouchableOpacity onPress={addSubtaskInput} style={styles.addSubtaskButtonBottom}>
+                  <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Espaço extra no final para o TabBar */}
+              <View style={styles.bottomSpacer} />
+            </ScrollView>
           </View>
 
-          {/* Barra de Navegação Inferior */}
           <TabBar
             onClipboardPress={() => console.log('Clipboard')}
             onBellPress={() => console.log('Bell')}
             onMenuPress={() => console.log('Menu')}
           />
+
+          {/* Modal de Edição */}
+          <Modal visible={isEditModalVisible} transparent={true} animationType="slide" onRequestClose={cancelEdit}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContainer}>
+                <Text style={styles.modalTitle}>Editar Subtask</Text>
+
+                <TextInput
+                  style={styles.modalInput}
+                  value={editingText}
+                  onChangeText={setEditingText}
+                  placeholder="Digite o novo texto"
+                  autoFocus={true}
+                  multiline={false}
+                  returnKeyType="done"
+                  onSubmitEditing={saveEdit}
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.modalCancelButton} onPress={cancelEdit}>
+                    <Text style={styles.modalCancelText}>Cancelar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.modalSaveButton} onPress={saveEdit}>
+                    <Text style={styles.modalSaveText}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </>
       )}
     </View>
   );
 }
 
-// Mantendo os mesmos estilos do arquivo original com adições para tags e prioridades
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -438,9 +527,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto-Base',
     color: '#1E1E1E',
   },
-  // Estilos para tags cinzas
   tagChip: {
-    backgroundColor: '#808080', // Cinza
+    backgroundColor: '#808080',
     marginRight: 8,
     marginTop: 4,
     borderRadius: 8,
@@ -450,10 +538,9 @@ const styles = StyleSheet.create({
   tagChipText: {
     fontSize: 12,
     fontFamily: 'Roboto-Base',
-    color: '#FFFFFF', // Letras brancas
+    color: '#FFFFFF',
     fontWeight: '500',
   },
-  // Estilos para prioridade
   priorityChip: {
     marginTop: 4,
     alignSelf: 'flex-start',
@@ -469,7 +556,7 @@ const styles = StyleSheet.create({
   priorityChipText: {
     fontSize: 12,
     fontFamily: 'Roboto-Base',
-    color: '#FFFFFF', // Letras brancas para todas as prioridades
+    color: '#FFFFFF',
     fontWeight: 'bold',
     textAlign: 'center',
   },
@@ -490,16 +577,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto-Base',
     color: '#5B3CC4',
     textAlign: 'center',
-  },
-  subtasksScrollArea: {
-    flex: 1,
-    maxHeight: 250,
-    marginTop: 10,
-    paddingBottom: 10,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 20,
   },
   subtaskInputContainer: {
     flexDirection: 'row',
@@ -542,17 +619,87 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
   },
-  buttonFloating: {
-    position: 'absolute',
-    bottom: 70,
-    left: 27,
-    right: 27,
-    marginTop: 14,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'Roboto-Bold',
+    color: '#1E1E1E',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalInput: {
+    borderWidth: 2,
+    borderColor: '#5B3CC4',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    fontFamily: 'Roboto-Regular',
+    color: '#1E1E1E',
+    marginBottom: 20,
+    minHeight: 45,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  modalCancelButton: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: '#CCCCCC',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontFamily: 'Roboto-Regular',
+    color: '#666666',
+  },
+  modalSaveButton: {
+    flex: 1,
+    backgroundColor: '#583CC4',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalSaveText: {
+    fontSize: 16,
+    fontFamily: 'Roboto-Regular',
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  mainScrollView: {
+    flex: 1,
+  },
+  mainScrollContent: {
+    paddingBottom: 100,
+  },
+  addSubtaskButtonBottom: {
+    marginTop: 20,
     backgroundColor: '#583CC4',
     borderRadius: 8,
     justifyContent: 'center',
-    paddingVertical: 2,
-    marginBottom: 0,
-    zIndex: 10,
+    paddingVertical: 12,
+  },
+  bottomSpacer: {
+    height: 20,
   },
 });

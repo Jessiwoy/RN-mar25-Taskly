@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 import { storage } from '../utils/storage';
 import { profileService } from '../domain/profile/services/profile.service';
@@ -11,15 +13,16 @@ const avatarMap: Record<string, string> = {
 };
 
 interface ProfileData {
-  name: string;
-  phone_number: string;
-  email?: string;
-  picture: string;
+  name: string
+  phone_number: string
+  email?: string
+  picture: string
 }
 
 export function useUserProfile() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false); // Adicionar estado de loading
 
   useEffect(() => {
     fetchProfile();
@@ -34,8 +37,9 @@ export function useUserProfile() {
 
   const fetchProfile = async () => {
     try {
+      setLoading(true); // Adicionar loading
       const token = await storage.getToken();
-      if (!token) return;
+      if (!token) {return;}
 
       const data = await profileService.getProfile();
       console.log('✅ Dados recebidos do profileService:', data);
@@ -48,29 +52,57 @@ export function useUserProfile() {
       });
     } catch (error) {
       console.error('❌ Erro ao carregar o perfil:', error);
+    } finally {
+      setLoading(false); // Finalizar loading
     }
   };
 
-  const updateProfile = async (updatedData: { name: string; phone_number: string; email: string }) => {
+  // Criar alias para fetchProfile para manter compatibilidade
+  const loadProfile = fetchProfile;
+
+  const updateProfile = async (updatedData: { name: string; phone_number: string; email: string; picture: string }) => {
     try {
       const token = await storage.getToken();
 
-      if (!token) throw new Error('Token não encontrado.');
+      if (!token) {throw new Error('Token não encontrado.');}
 
       await profileService.updateProfile({
         name: updatedData.name,
         phone_number: updatedData.phone_number,
+        email: updatedData.email,
+        picture: updatedData.picture,
       });
 
       console.log('✅ Perfil atualizado com sucesso via profileService');
 
-      // Buscar dados atualizados após o update
-      await fetchProfile();
+      await fetchProfile(); // Recarregar dados após atualização
     } catch (error) {
       console.error('❌ Erro ao atualizar o perfil:', error);
       throw error;
     }
   };
 
-  return { profile, avatarSource, updateProfile };
+  const deleteProfile = async () => {
+    try {
+      const token = await storage.getToken();
+      if (!token) {throw new Error('Token não encontrado.');}
+
+      await profileService.deleteProfile();
+      console.log('🗑️ Perfil deletado com sucesso.');
+      setProfile(null);
+      setAvatarSource(null);
+    } catch (error) {
+      console.error('❌ Erro ao deletar o perfil:', error);
+      throw error;
+    }
+  };
+
+  return {
+    profile,
+    avatarSource,
+    loading,
+    updateProfile,
+    deleteProfile,
+    loadProfile,
+  };
 }

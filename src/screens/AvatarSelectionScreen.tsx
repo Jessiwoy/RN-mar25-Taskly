@@ -43,7 +43,7 @@ export default function AvatarSelectionScreen() {
 
             navigation.reset({
                 index: 0,
-                routes: [{ name: 'HomePage' }],
+                routes: [{ name: 'TaskStack' }],
             });
         } catch {
             Alert.alert('Erro', 'Não foi possível atualizar o avatar.');

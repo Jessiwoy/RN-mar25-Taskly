@@ -1,25 +1,27 @@
+'use client';
+
 import React, { useState } from 'react';
 import { View, FlatList, StyleSheet, SafeAreaView, ScrollView, Alert } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { RootStackParamList } from '../navigation/types';
+import { useTheme } from '../context/ThemeContext';
+import { useUserProfile } from '../hooks/useUserProfile';
+import { useAuth } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ActionCard from '../components/atoms/ActionCard';
 import ProfileInfo from '../components/atoms/ProfileInfo';
 import SimpleButton from '../components/atoms/SimpleButton';
 import FooterNav from '../components/atoms/FooterNav';
 import ActionModal from '../components/atoms/ActionModal';
 import carouselData from '../data/carouselData';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../navigation/types';
-import { useTheme } from '../context/ThemeContext';
-import { useUserProfile } from '../hooks/useUserProfile';
-import { useAuth } from '../context/AuthContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type NavigationProp = StackNavigationProp<RootStackParamList, 'ProfileScreen'>;
+type NavigationProp = StackNavigationProp<RootStackParamList, 'ProfileScreen'>
 
 export default function ProfileScreen() {
     const navigation = useNavigation<NavigationProp>();
     const { isDarkMode } = useTheme();
-    const { profile, avatarSource } = useUserProfile();
+    const { profile, avatarSource, deleteProfile, loadProfile } = useUserProfile();
     const { signOut } = useAuth();
 
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
@@ -45,11 +47,32 @@ export default function ProfileScreen() {
         },
         '4': {
             title: 'Excluir conta',
-            description: 'Tem certeza que deseja excluir sua conta? Essa ação é permanente e todos os seus dados serão perdidos.',
+            description:
+              'Tem certeza que deseja excluir sua conta? Essa ação é permanente e todos os seus dados serão perdidos.',
             confirmLabel: 'EXCLUIR',
             confirmColor: '#dc3545',
         },
     };
+
+    useFocusEffect(
+      React.useCallback(() => {
+          const refreshProfile = async () => {
+              try {
+                  console.log('🔄 ProfileScreen - Atualizando dados do perfil...');
+
+                  if (loadProfile) {
+                      await loadProfile();
+                      console.log('✅ ProfileScreen - Dados do perfil atualizados com sucesso');
+                  }
+              } catch (error) {
+                  console.error('❌ ProfileScreen - Erro ao atualizar perfil:', error);
+              } finally {
+              }
+          };
+
+          refreshProfile();
+      }, [loadProfile]),
+    );
 
     const handleCardPress = (id: string) => setSelectedActionId(id);
     const closeModal = () => setSelectedActionId(null);
@@ -57,11 +80,19 @@ export default function ProfileScreen() {
     const handleModalConfirm = async () => {
         if (selectedActionId === '1') {
             navigation.navigate('EditProfileScreen');
+        } else if (selectedActionId === '4') {
+            try {
+                await deleteProfile();
+                await AsyncStorage.clear();
+                await signOut();
+                Alert.alert('Sucesso', 'Conta deletada com sucesso.');
+            } catch (error) {
+                Alert.alert('Erro', 'Erro ao deletar a conta');
+            }
         } else if (selectedActionId === '3') {
             try {
                 await signOut();
                 await AsyncStorage.clear();
-                navigation.navigate('LoginScreen');
             } catch (error) {
                 Alert.alert('Erro', 'Erro ao sair da conta');
             }
@@ -72,67 +103,67 @@ export default function ProfileScreen() {
     const config = selectedActionId ? modalConfigs[selectedActionId as keyof typeof modalConfigs] : null;
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#1E1E1E' : '#f2f2f2' }]}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-                <ProfileInfo
+      <SafeAreaView style={[styles.container, { backgroundColor: isDarkMode ? '#1E1E1E' : '#f2f2f2' }]}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+              <ProfileInfo
+                isDarkMode={isDarkMode}
+                name={profile?.name || ''}
+                phone_number={profile?.phone_number || ''}
+                email={profile?.email || ''}
+                avatarSource={avatarSource}
+              />
+
+              <View style={styles.carouselWrapper}>
+                  <FlatList
+                    horizontal
+                    data={carouselData}
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <View style={styles.cardWrapper}>
+                          <ActionCard
+                            label={item.label}
+                            icon={item.icon}
+                            onPress={() => handleCardPress(item.id)}
+                            isDarkMode={isDarkMode}
+                          />
+                      </View>
+                    )}
+                    contentContainerStyle={styles.carouselContainer}
+                  />
+              </View>
+
+              <View style={styles.buttons}>
+                  <SimpleButton
+                    label="Preferências >"
+                    onPress={() => navigation.navigate('PreferencesScreen')}
                     isDarkMode={isDarkMode}
-                    name={profile?.name || ''}
-                    phone_number={profile?.phone_number || ''}
-                    email={profile?.email || ''}
-                    avatarSource={avatarSource}
-                />
-
-                <View style={styles.carouselWrapper}>
-                    <FlatList
-                        horizontal
-                        data={carouselData}
-                        showsHorizontalScrollIndicator={false}
-                        keyExtractor={(item) => item.id}
-                        renderItem={({ item }) => (
-                            <View style={styles.cardWrapper}>
-                                <ActionCard
-                                    label={item.label}
-                                    icon={item.icon}
-                                    onPress={() => handleCardPress(item.id)}
-                                    isDarkMode={isDarkMode}
-                                />
-                            </View>
-                        )}
-                        contentContainerStyle={styles.carouselContainer}
-                    />
-                </View>
-
-                <View style={styles.buttons}>
-                    <SimpleButton
-                        label="Preferências >"
-                        onPress={() => navigation.navigate('PreferencesScreen')}
-                        isDarkMode={isDarkMode}
-                    />
-                    <SimpleButton
-                        label="Termos e regulamentos >"
-                        onPress={() => navigation.navigate('TermsScreen')}
-                        isDarkMode={isDarkMode}
-                    />
-                </View>
-
-                <View style={{ height: 50 }} />
-            </ScrollView>
-
-            <FooterNav />
-
-            {config && (
-                <ActionModal
-                    visible={!!selectedActionId}
-                    onClose={closeModal}
-                    title={config.title}
-                    description={config.description}
-                    confirmLabel={config.confirmLabel}
-                    confirmColor={config.confirmColor}
+                  />
+                  <SimpleButton
+                    label="Termos e regulamentos >"
+                    onPress={() => navigation.navigate('TermsScreen')}
                     isDarkMode={isDarkMode}
-                    onConfirm={handleModalConfirm}
-                />
-            )}
-        </SafeAreaView>
+                  />
+              </View>
+
+              <View style={{ height: 50 }} />
+          </ScrollView>
+
+          <FooterNav />
+
+          {config && (
+            <ActionModal
+              visible={!!selectedActionId}
+              onClose={closeModal}
+              title={config.title}
+              description={config.description}
+              confirmLabel={config.confirmLabel}
+              confirmColor={config.confirmColor}
+              isDarkMode={isDarkMode}
+              onConfirm={handleModalConfirm}
+            />
+          )}
+      </SafeAreaView>
     );
 }
 

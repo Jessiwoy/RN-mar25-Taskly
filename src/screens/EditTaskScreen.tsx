@@ -45,14 +45,13 @@ function isValidDate(dateStr: string): boolean {
   }
   const [_, dayStr, monthStr, yearStr] = dateStr.match(regex) || [];
   const day = Number.parseInt(dayStr, 10);
-  const month = Number.parseInt(monthStr, 10) - 1; // meses são de 0 a 11
+  const month = Number.parseInt(monthStr, 10) - 1;
   const year = Number.parseInt(yearStr, 10);
 
   const date = new Date(year, month, day);
   return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day;
 }
 
-// Função para converter prioridade string para número
 function convertPriorityToNumber(priority: string): number | undefined {
   switch (priority) {
     case 'ALTA':
@@ -66,7 +65,6 @@ function convertPriorityToNumber(priority: string): number | undefined {
   }
 }
 
-// Função para converter prioridade número para string (para exibição)
 function convertPriorityToString(priority: string | number | undefined): 'ALTA' | 'MEDIA' | 'BAIXA' | '' {
   if (typeof priority === 'number') {
     switch (priority) {
@@ -98,13 +96,11 @@ export default function EditTaskScreen() {
   const [tagInput, setTagInput] = useState('');
   const [tagsList, setTagsList] = useState<string[]>(task.tags || []);
 
-  // Verificar tanto priority quanto prioridade para compatibilidade
   const initialPriority = (task as any).priority || task.prioridade;
   const [selectedPriority, setSelectedPriority] = useState<'ALTA' | 'MEDIA' | 'BAIXA' | ''>(
     convertPriorityToString(initialPriority),
   );
 
-  // Usar prazo como fallback se deadline não existir
   const [dueDate, setDueDate] = useState(task.prazo || (task as any).deadline || '');
   const [dateError, setDateError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -130,53 +126,45 @@ export default function EditTaskScreen() {
       if (isSubmitting) {return;}
       setIsSubmitting(true);
 
-      // Validar data se foi preenchida
       if (dueDate && !isValidDate(dueDate)) {
         setDateError('Data inválida');
         setIsSubmitting(false);
         return;
       }
 
-      // Formatar a data para o formato esperado pela API
       const formattedDeadline = dueDate ? formatDateForAPI(dueDate) : undefined;
 
-      // Converter prioridade para número
       const priorityNumber = selectedPriority ? convertPriorityToNumber(selectedPriority) : undefined;
 
-      // Dados que serão enviados para a API usando o serviço centralizado
       const updatedTaskData: UpdateTaskDto = {
         title,
         description,
-        tags: tagsList, // Usar a lista de tags atualizada
-        done: task.done, // mantém o valor original
-        priority: priorityNumber as any, // Enviar como número usando o campo "priority"
-        deadline: formattedDeadline, // Incluir deadline para a API
+        tags: tagsList,
+        done: task.done,
+        priority: priorityNumber as any,
+        deadline: formattedDeadline,
       };
 
       console.log('Enviando atualização para a API:', updatedTaskData);
       console.log('Tags sendo enviadas:', tagsList);
       console.log('Prioridade sendo enviada como priority:', priorityNumber);
 
-      // Atualiza os dados usando o serviço centralizado
       const updatedTaskDto = await tasksService.updateTask(task.id, updatedTaskData);
       console.log('Resposta da API:', updatedTaskDto);
 
-      // Converter a task original para DTO e depois mesclar com os dados atualizados
       const originalTaskDto = convertTaskToDto(task);
 
-      // Criar TaskDto atualizado com tipos corretos
       const finalTaskDto = {
         ...originalTaskDto,
         title: updatedTaskDto.title || title,
         description: updatedTaskDto.description || description,
-        tags: tagsList, // Usar as tags do estado local
+        tags: tagsList,
         done: updatedTaskDto.done !== undefined ? updatedTaskDto.done : task.done,
         status: updatedTaskDto.status || originalTaskDto.status,
-        priority: priorityNumber as any, // Usar a prioridade numérica no campo priority
-        prioridade: priorityNumber as any, // Manter também no campo prioridade para compatibilidade
+        priority: priorityNumber as any,
+        prioridade: priorityNumber as any,
         prazo: dueDate || originalTaskDto.prazo,
         deadline: formattedDeadline || updatedTaskDto.deadline,
-        // Manter outros campos da resposta da API
         createdAt: updatedTaskDto.createdAt || originalTaskDto.createdAt,
         updatedAt: updatedTaskDto.updatedAt,
         subtasks: updatedTaskDto.subtasks || originalTaskDto.subtasks,
@@ -184,7 +172,6 @@ export default function EditTaskScreen() {
 
       console.log('TaskDto final:', finalTaskDto);
 
-      // Navega de volta para a tela de detalhes com a tarefa atualizada
       navigation.navigate('TaskDetail', { task: convertDtoToTask(finalTaskDto) });
     } catch (error) {
       console.error('Erro ao atualizar tarefa:', error);

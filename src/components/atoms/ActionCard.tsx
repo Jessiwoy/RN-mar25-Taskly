@@ -1,4 +1,3 @@
-// ActionCard.tsx
 import React from 'react';
 import { Text, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';

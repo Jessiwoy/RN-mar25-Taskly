@@ -4,11 +4,10 @@ export interface TaskDto {
   description: string
   tags?: string[]
   prioridade?: 'ALTA' | 'MEDIA' | 'BAIXA'
-  priority?: number // Adicionado campo priority para compatibilidade
+  priority?: number
   subtasks?: SubtaskDto[]
   createdAt?: string
   updatedAt?: string
-  // Propriedades adicionais que existem no tipo Task original
   done?: boolean
   status?: 'pendente' | 'concluida'
   prazo?: string
@@ -24,11 +23,11 @@ export interface SubtaskDto {
 export interface CreateTaskDto {
   title: string
   description: string
-  deadline: string // Campo obrigatório que a API espera
+  deadline: string
   done?: boolean
   tags?: string[]
   prioridade?: 'ALTA' | 'MEDIA' | 'BAIXA'
-  priority?: number // Adicionado campo priority para compatibilidade
+  priority?: number
 }
 
 export interface UpdateTaskDto {
@@ -36,9 +35,8 @@ export interface UpdateTaskDto {
   description?: string
   tags?: string[]
   prioridade?: 'ALTA' | 'MEDIA' | 'BAIXA'
-  priority?: number // Adicionado campo priority para compatibilidade
+  priority?: number
   subtasks?: SubtaskDto[]
-  // Adicionando propriedades que podem ser atualizadas
   done?: boolean
   status?: 'pendente' | 'concluida'
   prazo?: string
@@ -50,7 +48,6 @@ export interface TasksResponse {
   total: number
 }
 
-// Função utilitária para converter Task para TaskDto
 export const convertTaskToDto = (task: any): TaskDto => {
   return {
     id: task.id,
@@ -58,7 +55,7 @@ export const convertTaskToDto = (task: any): TaskDto => {
     description: task.description,
     tags: task.tags,
     prioridade: task.prioridade,
-    priority: task.priority, // Incluir priority se existir
+    priority: task.priority,
     subtasks: task.subtasks,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
@@ -69,15 +66,14 @@ export const convertTaskToDto = (task: any): TaskDto => {
   };
 };
 
-// Função utilitária para converter TaskDto para o tipo Task original (para navegação)
 export const convertDtoToTask = (taskDto: TaskDto): any => {
   return {
     id: taskDto.id,
     title: taskDto.title,
     description: taskDto.description,
-    tags: taskDto.tags || [], // Garante que tags seja sempre um array
+    tags: taskDto.tags || [],
     prioridade: taskDto.prioridade,
-    priority: taskDto.priority, // Incluir priority se existir
+    priority: taskDto.priority,
     subtasks: taskDto.subtasks || [],
     createdAt: taskDto.createdAt,
     updatedAt: taskDto.updatedAt,
@@ -88,14 +84,11 @@ export const convertDtoToTask = (taskDto: TaskDto): any => {
   };
 };
 
-// Função utilitária para formatar data no formato dd/mm/yyyy
 export const formatDateForAPI = (dateString: string): string => {
-  // Se já está no formato correto, retorna como está
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
     return dateString;
   }
 
-  // Se está em outro formato, tenta converter
   const date = new Date(dateString);
   if (!isNaN(date.getTime())) {
     const day = date.getDate().toString().padStart(2, '0');
@@ -104,7 +97,6 @@ export const formatDateForAPI = (dateString: string): string => {
     return `${day}/${month}/${year}`;
   }
 
-  // Se não conseguir converter, retorna a data atual
   const today = new Date();
   const day = today.getDate().toString().padStart(2, '0');
   const month = (today.getMonth() + 1).toString().padStart(2, '0');

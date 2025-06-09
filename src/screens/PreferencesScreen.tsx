@@ -1,4 +1,3 @@
-// PreferencesScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Image } from 'react-native';
 import FooterNav from '../components/atoms/FooterNav';
@@ -113,8 +112,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 5,
-    //borderWidth: 1,
-    //borderColor: '#808080',
   },
   backText: {
     paddingTop: 10,

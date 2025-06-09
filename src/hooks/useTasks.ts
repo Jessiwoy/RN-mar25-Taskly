@@ -74,17 +74,14 @@ export const useTasks = () => {
       const currentTask = tasks.find((task) => task.id === taskId);
       if (!currentTask) {return;}
 
-      // Optimistic update
       const newStatus = currentTask.status === 'pendente' ? 'concluida' : 'pendente';
       setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)));
 
-      // Update on backend - incluindo deadline para evitar erro da API
       await tasksService.updateTask(taskId, {
         status: newStatus,
         deadline: currentTask.deadline || formatDateForAPI(new Date().toISOString()),
       });
     } catch (err) {
-      // Revert optimistic update on error
       setTasks((prev) =>
         prev.map((task) =>
           task.id === taskId ? { ...task, status: task.status === 'pendente' ? 'concluida' : 'pendente' } : task,
