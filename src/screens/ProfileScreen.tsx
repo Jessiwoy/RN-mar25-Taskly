@@ -19,7 +19,7 @@ type NavigationProp = StackNavigationProp<RootStackParamList, 'ProfileScreen'>;
 export default function ProfileScreen() {
     const navigation = useNavigation<NavigationProp>();
     const { isDarkMode } = useTheme();
-    const { profile, avatarSource } = useUserProfile();
+    const { profile, avatarSource, deleteProfile } = useUserProfile();
     const { signOut } = useAuth();
 
     const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
@@ -57,6 +57,15 @@ export default function ProfileScreen() {
     const handleModalConfirm = async () => {
         if (selectedActionId === '1') {
             navigation.navigate('EditProfileScreen');
+        } else if (selectedActionId === '4') {
+            try {
+                await deleteProfile();
+                await AsyncStorage.clear();
+                await signOut();
+                Alert.alert('Sucesso', 'Conta deletada com sucesso.');
+            } catch (error) {
+                Alert.alert('Erro', 'Erro ao deletar a conta');
+            }
         } else if (selectedActionId === '3') {
             try {
                 await signOut();

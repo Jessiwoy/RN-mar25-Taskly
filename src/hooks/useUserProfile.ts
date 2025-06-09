@@ -74,5 +74,20 @@ export function useUserProfile() {
     }
   };
 
-  return { profile, avatarSource, updateProfile };
+  const deleteProfile = async () => {
+    try {
+      const token = await storage.getToken();
+      if (!token) throw new Error('Token não encontrado.');
+
+      await profileService.deleteProfile();
+      console.log('🗑️ Perfil deletado com sucesso.');
+      setProfile(null);
+      setAvatarSource(null);
+    } catch (error) {
+      console.error('❌ Erro ao deletar o perfil:', error);
+      throw error;
+    }
+  };
+
+  return { profile, avatarSource, updateProfile, deleteProfile };
 }

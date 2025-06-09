@@ -25,8 +25,16 @@ const updateProfileAvatar = async (
     return response.data;
 };
 
+
+const deleteProfile = async (
+): Promise<UpdateProfileRequestDTO> => {
+    const response = await api.delete<UpdateProfileRequestDTO>('/profile/delete-account');
+    return response.data;
+};
+
 export const profileService = {
     getProfile,
     updateProfile,
     updateProfileAvatar,
+    deleteProfile
 };
