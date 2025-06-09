@@ -2,16 +2,19 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { IconButton, Avatar } from 'react-native-paper';
 import Feather from 'react-native-vector-icons/Feather';
+import {useUserProfile} from '../../hooks/useUserProfile.ts';
 
 type Props = {
   onBack: () => void;
 };
 
 const BackIcon = ({ size, color }: { size: number; color: string }) => (
-    <Feather name="chevron-left" size={size} color={color} />
+  <Feather name="chevron-left" size={size} color={color} />
 );
 
 export default function Header({ onBack }: Props) {
+  const { avatarSource } = useUserProfile();
+
   return (
     <View style={styles.header}>
       <IconButton
@@ -21,7 +24,15 @@ export default function Header({ onBack }: Props) {
         onPress={onBack}
       />
       <Text style={styles.title}>TASKLY</Text>
-      <Avatar.Image size={45} source={require('../../assets/avatars/ellipse1.png')} />
+      {avatarSource ? (
+        typeof avatarSource === 'string' ? (
+          <Avatar.Image size={45} source={{ uri: avatarSource }} />
+        ) : (
+          <Avatar.Image size={45} source={avatarSource} />
+        )
+      ) : (
+        <Avatar.Icon size={45} icon="account" />
+      )}
     </View>
   );
 }

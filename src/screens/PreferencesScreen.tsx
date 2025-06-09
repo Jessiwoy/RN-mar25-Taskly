@@ -1,10 +1,10 @@
-// PreferencesScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Image } from 'react-native';
 import FooterNav from '../components/atoms/FooterNav';
 import SimpleButton from '../components/atoms/SimpleButton';
 import { useTheme } from '../context/ThemeContext';
 
+// @ts-ignore
 export default function PreferencesScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const { isDarkMode, setTheme } = useTheme();
@@ -32,11 +32,16 @@ export default function PreferencesScreen({ navigation }) {
 
             <View style={styles.imageRow}>
               <TouchableOpacity onPress={() => { setTheme('dark'); setModalVisible(false); }}>
-                <Image source={require('../assets/avatars/moon.png')} style={styles.image} />
+                <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/moon.png' }}
+                       style={styles.image}
+                />
               </TouchableOpacity>
 
+
               <TouchableOpacity onPress={() => { setTheme('light'); setModalVisible(false); }}>
-                <Image source={require('../assets/avatars/sun.png')} style={styles.image} />
+                <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/sun.png' }}
+                       style={styles.image}
+                />
               </TouchableOpacity>
             </View>
 
@@ -47,7 +52,7 @@ export default function PreferencesScreen({ navigation }) {
         </View>
       </Modal>
 
-      <FooterNav navigation={navigation} />
+      <FooterNav/>
     </View>
   );
 }
@@ -107,8 +112,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 5,
-    //borderWidth: 1,
-    //borderColor: '#808080',
   },
   backText: {
     paddingTop: 10,

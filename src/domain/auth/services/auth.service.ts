@@ -1,5 +1,3 @@
-// src/domain/auth/services/auth.service.ts
-
 import api from '../../../utils/api';
 import { storage } from '../../../utils/storage';
 
