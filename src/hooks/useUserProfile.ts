@@ -66,7 +66,6 @@ export function useUserProfile() {
 
       console.log('✅ Perfil atualizado com sucesso via profileService');
 
-      // Buscar dados atualizados após o update
       await fetchProfile();
     } catch (error) {
       console.error('❌ Erro ao atualizar o perfil:', error);

@@ -40,7 +40,7 @@ function isValidDate(dateStr: string): boolean {
     }
     const [_, dayStr, monthStr, yearStr] = dateStr.match(regex) || [];
     const day = parseInt(dayStr, 10);
-    const month = parseInt(monthStr, 10) - 1; // meses são de 0 a 11
+    const month = parseInt(monthStr, 10) - 1;
     const year = parseInt(yearStr, 10);
 
     const date = new Date(year, month, day);
@@ -83,7 +83,7 @@ const handleValidationAndSubmit = () => {
     }
 
     if (valid) {
-      onSubmit(); // Chama a função passada da HomePage
+      onSubmit();
     }
   };
 

@@ -24,7 +24,6 @@ import Header from '../components/molecules/Header';
 import TabBar from '../components/molecules/TabBar';
 import { tasksService, type TaskDto, type SubtaskDto, convertTaskToDto, convertDtoToTask } from '../domain/tasks';
 
-// Função helper para extrair data da task
 const extractTaskDate = (taskObj: any): string | Date | undefined => {
   return taskObj?.deadline || taskObj?.prazo || taskObj?.data || taskObj?.date || taskObj?.dueDate || taskObj?.due_date;
 };
@@ -40,7 +39,6 @@ export default function TaskDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentTask, setCurrentTask] = useState<TaskDto>(convertTaskToDto(task));
 
-  // Estados para o modal de edição
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
@@ -73,12 +71,10 @@ export default function TaskDetailScreen() {
     fetchTaskDetails();
   }, [task.id]);
 
-  // Função para formatar data no formato dd/mm/yyyy
   const formatDateForAPI = (date: Date | string | undefined): string => {
     console.log('Data recebida para formatação:', date, 'Tipo:', typeof date);
 
     if (!date) {
-      // Se não há deadline, usar data atual
       const today = new Date();
       const day = today.getDate().toString().padStart(2, '0');
       const month = (today.getMonth() + 1).toString().padStart(2, '0');
@@ -90,32 +86,25 @@ export default function TaskDetailScreen() {
     let dateObj: Date;
 
     if (typeof date === 'string') {
-      // Tentar diferentes formatos de string
       if (date.includes('/')) {
-        // Formato dd/mm/yyyy ou mm/dd/yyyy
         const parts = date.split('/');
         if (parts.length === 3) {
-          // Assumir dd/mm/yyyy
           dateObj = new Date(Number.parseInt(parts[2]), Number.parseInt(parts[1]) - 1, Number.parseInt(parts[0]));
         } else {
           dateObj = new Date(date);
         }
       } else if (date.includes('-')) {
-        // Formato ISO ou yyyy-mm-dd
         dateObj = new Date(date);
       } else {
-        // Tentar parsing direto
         dateObj = new Date(date);
       }
     } else if (date instanceof Date) {
       dateObj = date;
     } else {
-      // Fallback para data atual
       console.log('Formato de data não reconhecido, usando data atual');
       dateObj = new Date();
     }
 
-    // Verificar se a data é válida
     if (isNaN(dateObj.getTime())) {
       console.log('Data inválida, usando data atual');
       dateObj = new Date();
@@ -148,20 +137,17 @@ export default function TaskDetailScreen() {
       const newSubtask: SubtaskDto = { title: inputText, done: false };
       const updatedSubtasks = [...confirmedSubtasks.map((s) => ({ title: s.text, done: s.checked })), newSubtask];
 
-      // Debug: verificar dados da tarefa atual
       console.log('currentTask completo:', currentTask);
       console.log('currentTask.deadline:', currentTask.deadline);
       console.log('currentTask.prazo:', currentTask.prazo);
       console.log('task original:', task);
 
-      // Tentar diferentes campos de data
       const taskDeadline = extractTaskDate(currentTask) || extractTaskDate(task);
 
       console.log('Data encontrada:', taskDeadline);
 
       const formattedDeadline = formatDateForAPI(taskDeadline);
 
-      // Preparar dados completos para a API
       const updateData = {
         subtasks: updatedSubtasks,
         deadline: formattedDeadline,
@@ -169,7 +155,6 @@ export default function TaskDetailScreen() {
 
       console.log('Enviando dados para API:', updateData);
 
-      // Usar o serviço com dados completos
       await tasksService.updateSubtasks(task.id, updatedSubtasks, formattedDeadline);
 
       const updatedInputs = [...subtaskInputs];
@@ -239,14 +224,12 @@ export default function TaskDetailScreen() {
     }
   };
 
-  // Função para abrir o modal de edição
   const openEditModal = (index: number) => {
     setEditingIndex(index);
     setEditingText(confirmedSubtasks[index].text);
     setIsEditModalVisible(true);
   };
 
-  // Função para salvar a edição
   const saveEdit = async () => {
     if (editingIndex !== null && editingText.trim() !== '') {
       await updateSubtaskText(editingIndex, editingText.trim());
@@ -256,7 +239,6 @@ export default function TaskDetailScreen() {
     }
   };
 
-  // Função para cancelar a edição
   const cancelEdit = () => {
     setIsEditModalVisible(false);
     setEditingIndex(null);
@@ -637,7 +619,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
   },
-  // Estilos do Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -709,7 +690,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mainScrollContent: {
-    paddingBottom: 100, // Espaço para o TabBar
+    paddingBottom: 100,
   },
   addSubtaskButtonBottom: {
     marginTop: 20,

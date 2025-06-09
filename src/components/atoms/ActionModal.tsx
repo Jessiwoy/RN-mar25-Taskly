@@ -9,7 +9,7 @@ type Props = {
   confirmLabel: string;
   confirmColor: string;
   isDarkMode?: boolean;
-  onConfirm: () => void; // <-- Adicionado
+  onConfirm: () => void;
 };
 
 export default function ActionModal({

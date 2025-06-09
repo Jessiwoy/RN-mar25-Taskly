@@ -33,7 +33,7 @@ export default function HomePage() {
   const verifyAuth = useCallback(async () => {
     const token = await storage.getToken();
     if (!token) {
-      signOut(); // remove qualquer dado e volta pra AuthStack
+      signOut();
       navigation.reset({
         index: 0,
         routes: [{ name: 'LoginScreen' }],
@@ -65,7 +65,6 @@ export default function HomePage() {
 
   const loadUserProfile = useCallback(async () => {
     try {
-      // Usando o serviço centralizado em vez de fetch direto
       const profileData = await userService.getProfile();
       setProfile(profileData);
     } catch (error) {
@@ -76,7 +75,6 @@ export default function HomePage() {
   const loadTasksFromAPI = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Usando o serviço centralizado em vez de fetch direto
       const tasksData = await tasksService.getAllTasks();
       setTasks(tasksData);
     } catch (error) {
@@ -113,7 +111,6 @@ export default function HomePage() {
 
   const sendTaskToAPI = async (title: string, description: string, deadline: string) => {
     try {
-      // Formatar a data para o formato esperado pela API (dd/mm/yyyy)
       const formattedDeadline = formatDateForAPI(deadline);
 
       const taskData: CreateTaskDto = {
@@ -125,11 +122,9 @@ export default function HomePage() {
 
       console.log('Conteúdo enviado no POST:', taskData);
 
-      // Usando o serviço centralizado em vez de fetch direto
       const newTask = await tasksService.createTask(taskData);
       console.log('Resposta da API:', newTask);
 
-      // Normalizar a nova task para garantir que tenha todos os campos necessários
       const normalizedTask: TaskDto = {
         id: newTask.id || '',
         title: newTask.title || title,
@@ -145,7 +140,6 @@ export default function HomePage() {
         prazo: newTask.prazo,
       };
 
-      // Atualiza a lista local adicionando a nova task normalizada
       setTasks((prev) => [...prev, normalizedTask]);
     } catch (error) {
       console.error('Erro no envio de tarefa:', error);
@@ -168,27 +162,23 @@ export default function HomePage() {
 
   const toggleStatus = async (id: string) => {
     try {
-      // Encontra a task atual
       const currentTask = tasks.find((task) => task.id === id);
       if (!currentTask) {return;}
 
-      // Calcula o novo status
       const newStatus = currentTask.status === 'pendente' ? 'concluida' : 'pendente';
 
-      // Atualiza o status localmente primeiro (optimistic update)
       setTasks((prev) =>
         prev.map((task) =>
           task.id === id
             ? {
               ...task,
               status: newStatus,
-              done: newStatus === 'concluida', // Sincroniza done com status
+              done: newStatus === 'concluida',
             }
             : task,
         ),
       );
 
-      // Atualiza no backend - incluindo deadline para evitar erro da API
       await tasksService.updateTask(id, {
         status: newStatus,
         done: newStatus === 'concluida',
@@ -198,14 +188,13 @@ export default function HomePage() {
       console.log(`Status da task ${id} alterado para: ${newStatus}`);
     } catch (error) {
       console.error('Erro ao atualizar status da task:', error);
-      // Reverte a mudança local em caso de erro
       setTasks((prev) =>
         prev.map((task) =>
           task.id === id
             ? {
               ...task,
               status: task.status === 'pendente' ? 'concluida' : 'pendente',
-              done: task.status !== 'pendente', // Reverte o done também
+              done: task.status !== 'pendente',
             }
             : task,
         ),
@@ -215,7 +204,6 @@ export default function HomePage() {
   };
 
   const renderTask = ({ item }: { item: TaskDto }) => {
-    // Debug para verificar os dados da task
     console.log('Renderizando task:', {
       id: item.id,
       title: item.title,

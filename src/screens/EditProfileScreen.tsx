@@ -41,10 +41,9 @@ export default function EditProfileScreen() {
   const [name, setName] = useState('');
   const [phone_number, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
-  const [picture, setPicture] = useState<string>('avatar_1'); // Valor padrão
+  const [picture, setPicture] = useState<string>('avatar_1');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
-  // Refs para os inputs
   const nameInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -54,13 +53,11 @@ export default function EditProfileScreen() {
       setName(profile.name || '');
       setPhoneNumber(applyPhoneMask(profile.phone_number || ''));
       setEmail(profile.email || '');
-      // Usar picture do perfil ou avatar_1 como padrão
       setPicture(profile.picture || 'avatar_1');
       console.log('Perfil carregado:', profile);
     }
   }, [profile]);
 
-  // Monitorar eventos de teclado
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
       setKeyboardVisible(true);
@@ -75,12 +72,9 @@ export default function EditProfileScreen() {
     };
   }, []);
 
-  // Função para aplicar máscara no telefone
   const applyPhoneMask = (value: string) => {
-    // Remove tudo que não é número
     const numbers = value.replace(/\D/g, '');
 
-    // Aplica a máscara (XX) X XXXX-XXXX
     if (numbers.length <= 2) {
       return numbers;
     } else if (numbers.length <= 3) {
@@ -92,24 +86,20 @@ export default function EditProfileScreen() {
     }
   };
 
-  // Função para remover máscara e retornar apenas números
   const removePhoneMask = (value: string) => {
     return value.replace(/\D/g, '');
   };
 
-  // Função para validar se o telefone tem 11 dígitos
   const isValidPhone = (phone: string) => {
     const numbers = removePhoneMask(phone);
     return numbers.length === 11;
   };
 
-  // Handler para mudança no campo de telefone
   const handlePhoneChange = (text: string) => {
     const masked = applyPhoneMask(text);
     setPhoneNumber(masked);
   };
 
-  // Função para rolar até o input quando focado
   const handleInputFocus = (inputRef: React.RefObject<TextInput | null>) => {
     setTimeout(() => {
       if (scrollViewRef.current && inputRef.current) {
@@ -125,14 +115,12 @@ export default function EditProfileScreen() {
     }, 100);
   };
 
-  // Função para selecionar avatar
   const handleAvatarSelect = (avatarKey: string) => {
     setPicture(avatarKey);
   };
 
   const handleSave = async () => {
     try {
-      // Validar telefone antes de enviar
       if (!isValidPhone(phone_number)) {
         Alert.alert(
           'Erro',
@@ -141,21 +129,17 @@ export default function EditProfileScreen() {
         return;
       }
 
-      // Remover máscara do telefone antes de enviar
       const cleanPhone = removePhoneMask(phone_number);
 
-      // Preparar dados para envio, incluindo TODOS os campos necessários
       const updateData = {
         name,
         phone_number: cleanPhone,
-        email, // Incluir email para satisfazer o tipo
-        picture, // Incluir picture
+        email,
+        picture,
       };
 
       console.log('Dados preparados para envio:', updateData);
       console.log('Picture selecionado:', picture);
-
-      // Debug: verificar se updateProfile está recebendo todos os campos
       console.log('Chamando updateProfile com:', JSON.stringify(updateData, null, 2));
 
       await updateProfile(updateData);
@@ -216,7 +200,7 @@ export default function EditProfileScreen() {
             keyboardType="phone-pad"
             placeholder="(48) 9 9999-9999"
             placeholderTextColor={isDarkMode ? '#999' : '#666'}
-            maxLength={16} // (XX) X XXXX-XXXX = 16 caracteres
+            maxLength={16}
             onFocus={() => handleInputFocus(phoneInputRef)}
           />
 
@@ -293,7 +277,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingBottom: 100, // Espaço extra para o footer
+    paddingBottom: 100,
   },
   labelname: {
     fontSize: 16,
@@ -358,7 +342,6 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 20,
   },
-  // Estilos para o seletor de avatar
   avatarContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',

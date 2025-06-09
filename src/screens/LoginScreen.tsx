@@ -1,5 +1,17 @@
-import React, {useState, useEffect, useCallback} from 'react';
-import { View, StyleSheet, Text, Alert, ActivityIndicator } from 'react-native';
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+    View,
+    StyleSheet,
+    Text,
+    Alert,
+    ActivityIndicator,
+    ScrollView,
+    KeyboardAvoidingView,
+    Platform,
+    Keyboard,
+} from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Input from '../components/atoms/Input';
 import Button from '../components/atoms/Button';
@@ -21,33 +33,50 @@ export default function LoginScreen() {
     const [rememberMe, setRememberMe] = useState(false);
     const [errors, setErrors] = useState({ email: '', password: '' });
     const [isLoading, setIsLoading] = useState(false);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const { showError } = useErrorModal();
 
+    const scrollViewRef = useRef<ScrollView>(null);
+
     const handleSignIn = useCallback(
-        async (email: string, password: string) => {
-            try {
-                await auth.signIn(email, password);
-            } catch (err) {
-                showError(parseApiError(err));
-            }
-        },
-        [auth, showError]
+      async (email: string, password: string) => {
+          try {
+              await auth.signIn(email, password);
+          } catch (err) {
+              showError(parseApiError(err));
+          }
+      },
+      [auth, showError],
     );
 
     useEffect(() => {
-        if (route.params?.email) setEmail(route.params.email);
-        if (route.params?.password) setPassword(route.params.password);
+        if (route.params?.email) {setEmail(route.params.email);}
+        if (route.params?.password) {setPassword(route.params.password);}
     }, [route.params]);
+
+    useEffect(() => {
+        const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+            setKeyboardVisible(true);
+        });
+        const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardVisible(false);
+        });
+
+        return () => {
+            keyboardDidShowListener.remove();
+            keyboardDidHideListener.remove();
+        };
+    }, []);
 
     useEffect(() => {
         const tryBiometricLogin = async () => {
             const enabled = await AsyncStorage.getItem('biometricEnabled');
             const token = await AsyncStorage.getItem('biometricCredentials');
-            if (!enabled || !token) return;
+            if (!enabled || !token) {return;}
 
             const rnBiometrics = new ReactNativeBiometrics();
             const { available } = await rnBiometrics.isSensorAvailable();
-            if (!available) return;
+            if (!available) {return;}
 
             const { success } = await rnBiometrics.simplePrompt({ promptMessage: 'Login com biometria' });
             if (success) {
@@ -85,7 +114,7 @@ export default function LoginScreen() {
     };
 
     const handleLogin = async () => {
-        if (!validateFields()) return;
+        if (!validateFields()) {return;}
 
         setIsLoading(true);
         try {
@@ -103,29 +132,76 @@ export default function LoginScreen() {
         }
     };
 
+    const handleInputFocus = (inputPosition: 'email' | 'password') => {
+        setTimeout(() => {
+            if (scrollViewRef.current) {
+                const scrollPosition = inputPosition === 'email' ? 100 : 200;
+                scrollViewRef.current.scrollTo({ y: scrollPosition, animated: true });
+            }
+        }, 100);
+    };
+
     return (
-        <View style={styles.container}>
-            <View style={styles.logoWrapper}>
-                <Text style={styles.logoText}>TASKLY</Text>
-                <View style={styles.dot} />
-            </View>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+          <ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={[
+                styles.scrollContent,
+                {
+                    minHeight: keyboardVisible ? '120%' : '100%',
+                    justifyContent: keyboardVisible ? 'flex-start' : 'center',
+                    paddingTop: keyboardVisible ? 50 : 0,
+                },
+            ]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+              <View style={styles.logoWrapper}>
+                  <Text style={styles.logoText}>TASKLY</Text>
+                  <View style={styles.dot} />
+              </View>
 
-            <Input label="E-mail" value={email} onChangeText={setEmail} maskType="email" error={errors.email} />
-            <Input label="Senha" value={password} onChangeText={setPassword} secureTextEntry error={errors.password} />
+              <View style={styles.formContainer}>
+                  <Input
+                    label="E-mail"
+                    value={email}
+                    onChangeText={setEmail}
+                    maskType="email"
+                    error={errors.email}
+                    onFocus={() => handleInputFocus('email')}
+                  />
+                  <Input
+                    label="Senha"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    error={errors.password}
+                    onFocus={() => handleInputFocus('password')}
+                  />
 
-            <View style={styles.checkboxContainer}>
-                <Checkbox label="Lembrar de mim" value={rememberMe} onValueChange={setRememberMe} />
-            </View>
+                  <View style={styles.checkboxContainer}>
+                      <Checkbox label="Lembrar de mim" value={rememberMe} onValueChange={setRememberMe} />
+                  </View>
 
-            {isLoading ? (
-                <ActivityIndicator size="large" color={COLORS.primaryLight} />
-            ) : (
-                <>
-                    <Button title="ENTRAR" variant="filled" onPress={handleLogin} />
-                    <Button title="CRIAR CONTA" variant="outlined" onPress={() => navigation.navigate('RegisterScreen')} />
-                </>
-            )}
-        </View>
+                  {isLoading ? (
+                    <ActivityIndicator size="large" color={COLORS.primaryLight} />
+                  ) : (
+                    <View style={styles.buttonContainer}>
+                        <Button title="ENTRAR" variant="filled" onPress={handleLogin} />
+                        <Button title="CRIAR CONTA" variant="outlined" onPress={() => navigation.navigate('RegisterScreen')} />
+                    </View>
+                  )}
+              </View>
+
+              {/* Espaço extra quando o teclado estiver visível */}
+              {keyboardVisible && <View style={styles.keyboardSpacer} />}
+          </ScrollView>
+      </KeyboardAvoidingView>
     );
 }
 
@@ -133,8 +209,9 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.background,
-        justifyContent: 'center',
-        alignItems: 'center',
+    },
+    scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: 24,
     },
     logoWrapper: {
@@ -158,9 +235,21 @@ const styles = StyleSheet.create({
         top: 8,
         right: -24,
     },
+    formContainer: {
+        width: '100%',
+        alignItems: 'center',
+    },
     checkboxContainer: {
         width: 329,
         alignItems: 'flex-start',
         marginBottom: 20,
+    },
+    buttonContainer: {
+        width: '100%',
+        alignItems: 'center',
+        gap: 12,
+    },
+    keyboardSpacer: {
+        height: 300,
     },
 });
