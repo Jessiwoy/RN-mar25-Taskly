@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
         borderRadius: 9.75,
         backgroundColor: COLORS.primaryLight,
         top: 8,
-        right: -24,
+        right: 74,
     },
     formContainer: {
         width: '100%',

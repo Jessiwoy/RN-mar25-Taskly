@@ -33,11 +33,7 @@ export default function HomePage() {
   const verifyAuth = useCallback(async () => {
     const token = await storage.getToken();
     if (!token) {
-      signOut();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'LoginScreen' }],
-      });
+      await signOut();
     }
   }, [signOut, navigation]);
 

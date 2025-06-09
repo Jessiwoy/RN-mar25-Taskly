@@ -204,9 +204,6 @@ export default function EditProfileScreen() {
             onFocus={() => handleInputFocus(phoneInputRef)}
           />
 
-          {/* Indicador visual para formato do telefone */}
-          <Text style={[styles.phoneHint, { color: isDarkMode ? '#999' : '#666' }]}>Formato: (DDD) 9 XXXX-XXXX</Text>
-
           <Text style={[styles.label, { color: isDarkMode ? '#fff' : '#000' }]}>Email</Text>
           <TextInput
             style={[
@@ -250,10 +247,7 @@ export default function EditProfileScreen() {
               </TouchableOpacity>
             ))}
           </View>
-
-          {/* Debug: Mostrar avatar selecionado */}
-          <Text style={[styles.debugText, { color: isDarkMode ? '#999' : '#666' }]}>Avatar selecionado: {picture}</Text>
-
+'
           <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
             <Text style={styles.saveButtonText}>Salvar</Text>
           </TouchableOpacity>

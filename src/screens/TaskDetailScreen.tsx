@@ -216,7 +216,7 @@ export default function TaskDetailScreen() {
       Alert.alert('Sucesso', 'Tarefa resolvida com sucesso!');
       navigation.reset({
         index: 0,
-        routes: [{ name: 'HomePage' }],
+        routes: [{ name: 'TaskStack' }],
       });
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível resolver a tarefa.');
@@ -304,7 +304,7 @@ export default function TaskDetailScreen() {
               onBack={() =>
                 navigation.reset({
                   index: 0,
-                  routes: [{ name: 'HomePage' }],
+                  routes: [{ name: 'TaskStack' }],
                 })
               }
             />
