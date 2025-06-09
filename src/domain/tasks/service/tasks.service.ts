@@ -1,4 +1,4 @@
-import type { TaskDto, CreateTaskDto, UpdateTaskDto } from '../dto/task.dto';
+import type {TaskDto, CreateTaskDto, UpdateTaskDto, SubtaskDto} from '../dto/task.dto';
 import api from '../../../utils/api.ts';
 
 class TasksService {
@@ -53,16 +53,15 @@ class TasksService {
     }
   }
 
-  async updateSubtasks(taskId: string, subtasks: any[]): Promise<TaskDto> {
-    try {
-      const response = await api.put<TaskDto>(`${this.baseUrl}/${taskId}`, {
-        subtasks,
-      });
-      return response.data;
-    } catch (error) {
-      console.error(`Erro ao atualizar subtasks da task ${taskId}:`, error);
-      throw error;
+  async updateSubtasks(taskId: string, subtasks: SubtaskDto[], deadline?: string) {
+    const updateData: any = { subtasks };
+
+    if (deadline) {
+      updateData.deadline = deadline;
     }
+
+    const response = await api.put(`/tasks/${taskId}`, updateData);
+    return response.data;
   }
 
   async findTaskInList(taskId: string): Promise<TaskDto | null> {

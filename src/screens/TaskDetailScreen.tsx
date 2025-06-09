@@ -23,6 +23,11 @@ import Header from '../components/molecules/Header';
 import TabBar from '../components/molecules/TabBar';
 import { tasksService, type TaskDto, type SubtaskDto, convertTaskToDto, convertDtoToTask } from '../domain/tasks';
 
+// Função helper para extrair data da task
+const extractTaskDate = (taskObj: any): string | Date | undefined => {
+  return taskObj?.deadline || taskObj?.prazo || taskObj?.data || taskObj?.date || taskObj?.dueDate || taskObj?.due_date;
+};
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'TaskDetail'>
 
 export default function TaskDetailScreen() {
@@ -33,15 +38,12 @@ export default function TaskDetailScreen() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [confirmedSubtasks, setConfirmedSubtasks] = useState<{ text: string; checked: boolean }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // Converter o task original para TaskDto
   const [currentTask, setCurrentTask] = useState<TaskDto>(convertTaskToDto(task));
 
   useEffect(() => {
     const fetchTaskDetails = async () => {
       try {
         setIsLoading(true);
-
-        // Usando o serviço centralizado em vez de fetch direto
         const foundTask = await tasksService.findTaskInList(task.id);
 
         if (foundTask?.subtasks) {
@@ -66,6 +68,63 @@ export default function TaskDetailScreen() {
     fetchTaskDetails();
   }, [task.id]);
 
+  // Função para formatar data no formato dd/mm/yyyy
+  const formatDateForAPI = (date: Date | string | undefined): string => {
+    console.log('Data recebida para formatação:', date, 'Tipo:', typeof date);
+
+    if (!date) {
+      // Se não há deadline, usar data atual
+      const today = new Date();
+      const day = today.getDate().toString().padStart(2, '0');
+      const month = (today.getMonth() + 1).toString().padStart(2, '0');
+      const year = today.getFullYear();
+      console.log('Usando data atual:', `${day}/${month}/${year}`);
+      return `${day}/${month}/${year}`;
+    }
+
+    let dateObj: Date;
+
+    if (typeof date === 'string') {
+      // Tentar diferentes formatos de string
+      if (date.includes('/')) {
+        // Formato dd/mm/yyyy ou mm/dd/yyyy
+        const parts = date.split('/');
+        if (parts.length === 3) {
+          // Assumir dd/mm/yyyy
+          dateObj = new Date(Number.parseInt(parts[2]), Number.parseInt(parts[1]) - 1, Number.parseInt(parts[0]));
+        } else {
+          dateObj = new Date(date);
+        }
+      } else if (date.includes('-')) {
+        // Formato ISO ou yyyy-mm-dd
+        dateObj = new Date(date);
+      } else {
+        // Tentar parsing direto
+        dateObj = new Date(date);
+      }
+    } else if (date instanceof Date) {
+      dateObj = date;
+    } else {
+      // Fallback para data atual
+      console.log('Formato de data não reconhecido, usando data atual');
+      dateObj = new Date();
+    }
+
+    // Verificar se a data é válida
+    if (isNaN(dateObj.getTime())) {
+      console.log('Data inválida, usando data atual');
+      dateObj = new Date();
+    }
+
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const year = dateObj.getFullYear();
+
+    const formattedDate = `${day}/${month}/${year}`;
+    console.log('Data formatada:', formattedDate);
+    return formattedDate;
+  };
+
   const addSubtaskInput = () => {
     setSubtaskInputs([...subtaskInputs, '']);
   };
@@ -81,16 +140,33 @@ export default function TaskDetailScreen() {
     if (!inputText) {return;}
 
     try {
-      // Monta nova subtask
       const newSubtask: SubtaskDto = { title: inputText, done: false };
-
-      // Busca subtasks atuais e adiciona a nova
       const updatedSubtasks = [...confirmedSubtasks.map((s) => ({ title: s.text, done: s.checked })), newSubtask];
 
-      // Usa o serviço centralizado para atualizar
-      await tasksService.updateSubtasks(task.id, updatedSubtasks);
+      // Debug: verificar dados da tarefa atual
+      console.log('currentTask completo:', currentTask);
+      console.log('currentTask.deadline:', currentTask.deadline);
+      console.log('currentTask.prazo:', currentTask.prazo);
+      console.log('task original:', task);
 
-      // Limpa input e atualiza estado local
+      // Tentar diferentes campos de data
+      const taskDeadline = extractTaskDate(currentTask) || extractTaskDate(task);
+
+      console.log('Data encontrada:', taskDeadline);
+
+      const formattedDeadline = formatDateForAPI(taskDeadline);
+
+      // Preparar dados completos para a API
+      const updateData = {
+        subtasks: updatedSubtasks,
+        deadline: formattedDeadline,
+      };
+
+      console.log('Enviando dados para API:', updateData);
+
+      // Usar o serviço com dados completos
+      await tasksService.updateSubtasks(task.id, updatedSubtasks, formattedDeadline);
+
       const updatedInputs = [...subtaskInputs];
       updatedInputs.splice(index, 1);
       setSubtaskInputs(updatedInputs);
@@ -98,7 +174,7 @@ export default function TaskDetailScreen() {
       setConfirmedSubtasks((prev) => [...prev, { text: inputText, checked: false }]);
     } catch (error) {
       console.error('Erro ao enviar subtask para API:', error);
-      Alert.alert('Erro', 'Erro ao criar subtask');
+      Alert.alert('Erro', 'Erro ao criar subtask. Verifique se a tarefa possui uma data válida.');
     }
   };
 
@@ -112,13 +188,13 @@ export default function TaskDetailScreen() {
       };
       setConfirmedSubtasks(updated);
 
-      // Atualiza no backend
       try {
         const updatedSubtasks = updated.map((s) => ({ title: s.text, done: s.checked }));
-        await tasksService.updateSubtasks(task.id, updatedSubtasks);
+        const deadline = formatDateForAPI(extractTaskDate(currentTask));
+
+        await tasksService.updateSubtasks(task.id, updatedSubtasks, deadline);
       } catch (error) {
         console.error('Erro ao atualizar status da subtask:', error);
-        // Reverte o estado local em caso de erro
         updated[index].checked = !updated[index].checked;
         setConfirmedSubtasks([...updated]);
         Alert.alert('Erro', 'Não foi possível atualizar a subtask');
@@ -128,11 +204,25 @@ export default function TaskDetailScreen() {
     }
   };
 
+  const updateSubtaskText = async (index: number, newText: string) => {
+    try {
+      const updated = [...confirmedSubtasks];
+      updated[index].text = newText;
+      setConfirmedSubtasks(updated);
+
+      const updatedSubtasks = updated.map((s) => ({ title: s.text, done: s.checked }));
+      const deadline = formatDateForAPI(extractTaskDate(currentTask));
+
+      await tasksService.updateSubtasks(task.id, updatedSubtasks, deadline);
+    } catch (error) {
+      console.error('Erro ao atualizar texto da subtask:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar a subtask');
+    }
+  };
+
   const deleteTask = async () => {
     try {
-      // Usa o serviço centralizado para deletar
       await tasksService.deleteTask(task.id);
-
       Alert.alert('Sucesso', 'Tarefa resolvida com sucesso!');
       navigation.reset({
         index: 0,
@@ -144,28 +234,11 @@ export default function TaskDetailScreen() {
     }
   };
 
-  const updateSubtaskText = async (index: number, newText: string) => {
-    try {
-      const updated = [...confirmedSubtasks];
-      updated[index].text = newText;
-      setConfirmedSubtasks(updated);
-
-      // Atualiza no backend
-      const updatedSubtasks = updated.map((s) => ({ title: s.text, done: s.checked }));
-      await tasksService.updateSubtasks(task.id, updatedSubtasks);
-    } catch (error) {
-      console.error('Erro ao atualizar texto da subtask:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar a subtask');
-    }
-  };
-
   const startEditing = (index: number) => {
     setEditingIndex(index);
   };
 
-  // Função para obter estilo da prioridade baseado no valor numérico
   function getPriorityStyle(task: TaskDto) {
-    // Verificar tanto priority quanto prioridade
     const priorityValue = (task as any).priority !== undefined ? (task as any).priority : task.prioridade;
 
     console.log('Prioridade recebida:', priorityValue, 'Tipo:', typeof priorityValue);
@@ -174,12 +247,10 @@ export default function TaskDetailScreen() {
       return null;
     }
 
-    // Converter para número se for string
     let priorityNumber: number;
     if (typeof priorityValue === 'string') {
       priorityNumber = Number.parseInt(priorityValue, 10);
       if (Number.isNaN(priorityNumber)) {
-        // Se não conseguir converter, tentar mapear strings
         switch (priorityValue.toUpperCase()) {
           case 'ALTA':
             priorityNumber = 3;
@@ -200,14 +271,13 @@ export default function TaskDetailScreen() {
       priorityNumber = priorityValue;
     }
 
-    // Mapear números para cores e textos
     switch (priorityNumber) {
       case 3:
-        return { backgroundColor: '#32C25B', text: 'ALTA' }; // Verde
+        return { backgroundColor: '#32C25B', text: 'ALTA' };
       case 2:
-        return { backgroundColor: '#FFD93D', text: 'MÉDIA' }; // Amarelo
+        return { backgroundColor: '#FFD93D', text: 'MÉDIA' };
       case 1:
-        return { backgroundColor: '#FF6B6B', text: 'BAIXA' }; // Vermelho
+        return { backgroundColor: '#FF6B6B', text: 'BAIXA' };
       default:
         console.log('Prioridade numérica não reconhecida:', priorityNumber);
         return null;
@@ -222,7 +292,6 @@ export default function TaskDetailScreen() {
         </View>
       ) : (
         <>
-          {/* Header e Conteúdo */}
           <View style={styles.container}>
             <Header
               onBack={() =>
@@ -238,8 +307,9 @@ export default function TaskDetailScreen() {
                 style={styles.editIcon}
                 onPress={() => navigation.navigate('EditTask', { task: convertDtoToTask(currentTask) })}
               >
-                <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector1.png' }}
-                       style={{ width: 24, height: 24 }}
+                <Image
+                  source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector1.png' }}
+                  style={{ width: 24, height: 24 }}
                 />
               </TouchableOpacity>
 
@@ -278,7 +348,6 @@ export default function TaskDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Inputs de novas subtasks */}
             {subtaskInputs.map((input, i) => (
               <View key={`input-${i}`} style={styles.subtaskInputContainer}>
                 <TextInput
@@ -304,7 +373,6 @@ export default function TaskDetailScreen() {
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.scrollContent}
               >
-                {/* Subtasks confirmadas */}
                 {confirmedSubtasks.map((sub, i) => (
                   <View key={`confirmed-${i}`} style={styles.confirmedSubtask}>
                     {editingIndex !== i && (
@@ -331,8 +399,10 @@ export default function TaskDetailScreen() {
                       {editingIndex === i ? (
                         <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
                       ) : (
-                        <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector.png' }}
-                               style={{ width: 24, height: 24 }} />
+                        <Image
+                          source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector.png' }}
+                          style={{ width: 24, height: 24 }}
+                        />
                       )}
                     </TouchableOpacity>
                   </View>
@@ -340,7 +410,6 @@ export default function TaskDetailScreen() {
               </ScrollView>
             </View>
 
-            {/* Botão Adicionar Subtask */}
             {!isLoading && confirmedSubtasks.length > 0 && (
               <TouchableOpacity onPress={addSubtaskInput} style={styles.buttonFloating}>
                 <Text style={styles.subtaskButtonText}>ADICIONAR SUBTASK</Text>
@@ -348,7 +417,6 @@ export default function TaskDetailScreen() {
             )}
           </View>
 
-          {/* Barra de Navegação Inferior */}
           <TabBar
             onClipboardPress={() => console.log('Clipboard')}
             onBellPress={() => console.log('Bell')}
@@ -360,7 +428,6 @@ export default function TaskDetailScreen() {
   );
 }
 
-// Mantendo os mesmos estilos do arquivo original com adições para tags e prioridades
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -438,9 +505,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto-Base',
     color: '#1E1E1E',
   },
-  // Estilos para tags cinzas
   tagChip: {
-    backgroundColor: '#808080', // Cinza
+    backgroundColor: '#808080',
     marginRight: 8,
     marginTop: 4,
     borderRadius: 8,
@@ -450,10 +516,9 @@ const styles = StyleSheet.create({
   tagChipText: {
     fontSize: 12,
     fontFamily: 'Roboto-Base',
-    color: '#FFFFFF', // Letras brancas
+    color: '#FFFFFF',
     fontWeight: '500',
   },
-  // Estilos para prioridade
   priorityChip: {
     marginTop: 4,
     alignSelf: 'flex-start',
@@ -469,7 +534,7 @@ const styles = StyleSheet.create({
   priorityChipText: {
     fontSize: 12,
     fontFamily: 'Roboto-Base',
-    color: '#FFFFFF', // Letras brancas para todas as prioridades
+    color: '#FFFFFF',
     fontWeight: 'bold',
     textAlign: 'center',
   },
