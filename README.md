@@ -20,9 +20,11 @@ Aplicativo mobile para gestão de tarefas. Com o Taskly, o usuário pode organiz
 
 A arquitetura foi planejada para garantir **clareza, escalabilidade e manutenibilidade**, com base em três pilares:
 
-- **Clean Code**: código limpo, legível e de fácil manutenção.
-- **Layer-Based Architecture**: separação entre camadas (componentes, navegação, telas, utilitários).
+- **Clean Code**: código legível e com responsabilidades bem definidas.
+- **Component-based e Layer-Based**: seseparação em camadas como components, screens, services, utils, e navigation.
 - **Atomic Design**: componentes organizados em `atoms`, `molecules` e, futuramente, `organisms`.
+- **SOLID**: princípios aplicados para manter o código modular, reutilizável e de baixo acoplamento.
+- **DDD (Domain-Driven Design)**: organização do código baseada nos conceitos do domínio, como Task, User e Profile, separando regra de negócio da interface e infraestrutura.
 
 ---
 
@@ -96,7 +98,7 @@ O app suporta **tema claro e escuro**, alternando conforme a preferência do usu
 
 - Node.js (versão LTS recomendada)
 - React Native CLI (`npm install -g react-native-cli`)
-- Android Studio (com um AVD configurado) ou Xcode (macOS) para iOS
+- Android Studio (com um AVD configurado) 
 - Java JDK instalado
 - Dispositivo físico com depuração USB ativada (opcional)
 
@@ -124,16 +126,6 @@ Certifique-se de que um emulador está rodando no Android Studio ou que um dispo
 npx react-native run-android
 ```
 
-### Para rodar no iOS (apenas no macOS)
-
-Certifique-se de que você tem o Xcode instalado.
-
-```bash
-npx react-native run-ios
-```
-
----
-
 ## 📝 Licença
 
 Projeto privado, desenvolvido exclusivamente para fins educacionais e internos.
@@ -141,8 +133,7 @@ Projeto privado, desenvolvido exclusivamente para fins educacionais e internos.
 ---
 
 ## 👨‍💻 Desenvolvedores
-
-- [**Czarena Wealth Nana Afia Agyei**](https://github.com/wealthczarena)  
+ 
 - [**Jessica Woytuski**](https://github.com/Jessiwoy)  
 - [**João Vitor Iuncks**](https://github.com/Iuncks)  
 - [**Lorenzo Giuseppe Oliveira Baroni**](https://github.com/lorenzobaroni)  
