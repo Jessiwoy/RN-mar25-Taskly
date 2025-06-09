@@ -13,11 +13,11 @@ import Button from '../components/atoms/Button';
 import { profileService } from '../domain/profile';
 
 const avatars = [
-    require('../assets/avatars/avatar1.png'),
-    require('../assets/avatars/avatar2.png'),
-    require('../assets/avatars/avatar3.png'),
-    require('../assets/avatars/avatar4.png'),
-    require('../assets/avatars/avatar5.png'),
+    { url: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar1.png' },
+    { url: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar2.png' },
+    { url: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar3.png' },
+    { url: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar4.png' },
+    { url: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar5.png' },
 ];
 
 const borderColors = ['#5B3CC4', '#E6E0F7', '#32C25B', '#E63946', '#B58B46'];
@@ -70,7 +70,7 @@ export default function AvatarSelectionScreen() {
                         ]}
                     >
                         <Image
-                            source={avatar}
+                            source={{ uri: avatar.url }}
                             style={[
                                 styles.avatarImage,
                                 selected !== null && selected !== index && styles.avatarImageNotSelected,
@@ -95,7 +95,7 @@ export default function AvatarSelectionScreen() {
                         ]}
                     >
                         <Image
-                            source={avatar}
+                            source={{ uri: avatar.url }}
                             style={[
                                 styles.avatarImage,
                                 selected !== null && selected !== index + 3 && styles.avatarImageNotSelected,

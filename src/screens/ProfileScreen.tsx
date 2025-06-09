@@ -1,4 +1,3 @@
-// ProfileScreen.tsx
 import React, { useState } from 'react';
 import { View, FlatList, StyleSheet, SafeAreaView, ScrollView, Alert } from 'react-native';
 import ActionCard from '../components/atoms/ActionCard';
@@ -62,9 +61,7 @@ export default function ProfileScreen() {
             try {
                 await signOut();
                 await AsyncStorage.clear();
-                navigation.navigate('AuthStack', {
-                    screen: 'LoginScreen',
-                });
+                navigation.navigate('LoginScreen');
             } catch (error) {
                 Alert.alert('Erro', 'Erro ao sair da conta');
             }

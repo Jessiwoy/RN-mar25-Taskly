@@ -1,38 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  FlatList,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { Avatar } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import TabBar from '../components/molecules/TabBar';
 import CreateTaskModal from './modal/CreateTaskModal';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
-import { storage } from '../utils/storage';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BiometricModal from './modal/BiometricModal';
-import { useAuth } from '../context/AuthContext'; // <<< IMPORTAÇÃO
+import { useAuth } from '../context/AuthContext';
+import { tasksService, type TaskDto, type CreateTaskDto, convertDtoToTask, formatDateForAPI } from '../domain/tasks';
+import { userService, type UserProfileDto } from '../domain/user';
+import { storage } from '../utils/storage';
 
-type HomePageNavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomePage'>;
-
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  tags: string[];
-  done: boolean;
-  createdAt: string;
-  status: 'pendente' | 'concluida';
-  prioridade?: string;
-  prazo: string;
-}
+type HomePageNavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomePage'>
 
 export default function HomePage() {
   const navigation = useNavigation<HomePageNavigationProp>();
@@ -41,29 +24,13 @@ export default function HomePage() {
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [prazo, setPrazo] = useState('');
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [profile, setProfile] = useState<{ picture: string } | null>(null);
+  const [tasks, setTasks] = useState<TaskDto[]>([]);
+  const [profile, setProfile] = useState<UserProfileDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [biometricCredentials, setBiometricCredentials] = useState<{ email: string; password: string } | null>(null);
 
-  useEffect(() => {
-    loadTasksFromAPI();
-  }, []);
-
-  useEffect(() => {
-    loadUserProfile();
-  }, []);
-
-  useEffect(() => {
-    checkBiometricAndAvatarFlow();
-  }, []);
-
-  useEffect(() => {
-    verifyAuth();
-  }, []);
-
-  const verifyAuth = async () => {
+  const verifyAuth = useCallback(async () => {
     const token = await storage.getToken();
     if (!token) {
       signOut(); // remove qualquer dado e volta pra AuthStack
@@ -72,9 +39,9 @@ export default function HomePage() {
         routes: [{ name: 'LoginScreen' }],
       });
     }
-  };
+  }, [signOut, navigation]);
 
-  const checkBiometricAndAvatarFlow = async () => {
+  const checkBiometricAndAvatarFlow = useCallback(async () => {
     try {
       const firstLogin = await AsyncStorage.getItem('firstLogin');
       if (firstLogin === 'true') {
@@ -94,92 +61,101 @@ export default function HomePage() {
     } catch (error) {
       console.error('Erro ao verificar fluxo de login:', error);
     }
-  };
+  }, [navigation]);
 
-  const loadUserProfile = async () => {
+  const loadUserProfile = useCallback(async () => {
     try {
-      const token = await storage.getToken();
-      if (!token) return;
-
-      const response = await fetch('http://15.229.11.44:3000/profile', {
-        headers: {
-          Authorization: 'Bearer ' + token,
-        },
-      });
-
-      const data = await response.json();
-      setProfile(data);
+      // Usando o serviço centralizado em vez de fetch direto
+      const profileData = await userService.getProfile();
+      setProfile(profileData);
     } catch (error) {
       console.error('Erro ao carregar o perfil:', error);
     }
-  };
+  }, []);
 
-  const avatarMap: Record<string, any> = {
-    avatar_1: require('../assets/avatars/avatar1.png'),
-    avatar_2: require('../assets/avatars/avatar2.png'),
-    avatar_3: require('../assets/avatars/avatar3.png'),
-    avatar_4: require('../assets/avatars/avatar4.png'),
-    avatar_5: require('../assets/avatars/avatar5.png'),
-  };
-
-  const loadTasksFromAPI = async () => {
+  const loadTasksFromAPI = useCallback(async () => {
     setIsLoading(true);
     try {
-      const token = await storage.getToken();
-      if (!token) return;
-
-      const response = await fetch('http://15.229.11.44:3000/tasks', {
-        headers: {
-          Authorization: 'Bearer ' + token,
-        },
-      });
-
-      const data = await response.json();
-      setTasks(data);
+      // Usando o serviço centralizado em vez de fetch direto
+      const tasksData = await tasksService.getAllTasks();
+      setTasks(tasksData);
     } catch (error) {
       console.error('Erro ao buscar tarefas da API:', error);
+      Alert.alert('Erro', 'Não foi possível carregar as tarefas');
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    loadTasksFromAPI();
+  }, [loadTasksFromAPI]);
+
+  useEffect(() => {
+    loadUserProfile();
+  }, [loadUserProfile]);
+
+  useEffect(() => {
+    checkBiometricAndAvatarFlow();
+  }, [checkBiometricAndAvatarFlow]);
+
+  useEffect(() => {
+    verifyAuth();
+  }, [verifyAuth]);
+
+  const avatarMap: Record<string, string> = {
+    avatar_1: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar1.png',
+    avatar_2: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar2.png',
+    avatar_3: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar3.png',
+    avatar_4: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar4.png',
+    avatar_5: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar5.png',
   };
 
   const sendTaskToAPI = async (title: string, description: string, deadline: string) => {
     try {
-      const token = await storage.getToken();
-      if (!token) throw new Error('Token não encontrado');
+      // Formatar a data para o formato esperado pela API (dd/mm/yyyy)
+      const formattedDeadline = formatDateForAPI(deadline);
 
-      const body = {
+      const taskData: CreateTaskDto = {
         title,
         description,
+        deadline: formattedDeadline,
         done: false,
-        deadline,
       };
 
-      console.log('Conteúdo enviado no POST:', body);
+      console.log('Conteúdo enviado no POST:', taskData);
 
-      const response = await fetch('http://15.229.11.44:3000/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token,
-        },
-        body: JSON.stringify(body),
-      });
+      // Usando o serviço centralizado em vez de fetch direto
+      const newTask = await tasksService.createTask(taskData);
+      console.log('Resposta da API:', newTask);
 
-      const responseData = await response.json();
-      console.log('Resposta da API:', responseData);
+      // Normalizar a nova task para garantir que tenha todos os campos necessários
+      const normalizedTask: TaskDto = {
+        id: newTask.id || '',
+        title: newTask.title || title,
+        description: newTask.description || description,
+        deadline: newTask.deadline || formattedDeadline,
+        status: newTask.status || 'pendente',
+        done: newTask.done || false,
+        tags: newTask.tags || [],
+        subtasks: newTask.subtasks || [],
+        prioridade: newTask.prioridade,
+        createdAt: newTask.createdAt,
+        updatedAt: newTask.updatedAt,
+        prazo: newTask.prazo,
+      };
 
-      if (!response.ok) throw new Error('Erro ao criar tarefa na API');
-
-      await loadTasksFromAPI();
+      // Atualiza a lista local adicionando a nova task normalizada
+      setTasks((prev) => [...prev, normalizedTask]);
     } catch (error) {
       console.error('Erro no envio de tarefa:', error);
+      Alert.alert('Erro', 'Não foi possível criar a tarefa');
     }
   };
 
   const handleCreate = async () => {
     if (!titulo || !descricao || !prazo) {
-      Alert.alert('Preencha todos os campos obrigatórios');
+      Alert.alert('Erro', 'Preencha todos os campos obrigatórios');
       return;
     }
 
@@ -190,122 +166,180 @@ export default function HomePage() {
     setModalVisible(false);
   };
 
-  const toggleStatus = (id: string) => {
-    setTasks((prev) =>
+  const toggleStatus = async (id: string) => {
+    try {
+      // Encontra a task atual
+      const currentTask = tasks.find((task) => task.id === id);
+      if (!currentTask) {return;}
+
+      // Calcula o novo status
+      const newStatus = currentTask.status === 'pendente' ? 'concluida' : 'pendente';
+
+      // Atualiza o status localmente primeiro (optimistic update)
+      setTasks((prev) =>
         prev.map((task) =>
-            task.id === id
-                ? { ...task, status: task.status === 'pendente' ? 'concluida' : 'pendente' }
-                : task
-        )
-    );
+          task.id === id
+            ? {
+              ...task,
+              status: newStatus,
+              done: newStatus === 'concluida', // Sincroniza done com status
+            }
+            : task,
+        ),
+      );
+
+      // Atualiza no backend - incluindo deadline para evitar erro da API
+      await tasksService.updateTask(id, {
+        status: newStatus,
+        done: newStatus === 'concluida',
+        deadline: currentTask.deadline || formatDateForAPI(new Date().toISOString()),
+      });
+
+      console.log(`Status da task ${id} alterado para: ${newStatus}`);
+    } catch (error) {
+      console.error('Erro ao atualizar status da task:', error);
+      // Reverte a mudança local em caso de erro
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === id
+            ? {
+              ...task,
+              status: task.status === 'pendente' ? 'concluida' : 'pendente',
+              done: task.status !== 'pendente', // Reverte o done também
+            }
+            : task,
+        ),
+      );
+      Alert.alert('Erro', 'Não foi possível atualizar o status da tarefa');
+    }
   };
 
-  const renderTask = ({ item }: { item: Task }) => (
+  const renderTask = ({ item }: { item: TaskDto }) => {
+    // Debug para verificar os dados da task
+    console.log('Renderizando task:', {
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      status: item.status,
+      done: item.done,
+      deadline: item.deadline,
+    });
+
+    return (
       <View style={styles.cardTask}>
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{item.title}</Text>
+          <Text style={styles.cardTitle}>{item.title || 'Título não disponível'}</Text>
           <TouchableOpacity style={styles.checkbox} onPress={() => toggleStatus(item.id)}>
-            {item.status === 'concluida' && <Image source={require('../assets/avatars/checkbox.png')} />}
+            {(item.status === 'concluida' || item.done === true) && (
+              <Image
+                source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/checkbox.png' }}
+                style={{ width: 23, height: 23 }}
+                onError={() => console.log('Erro ao carregar imagem do checkbox')}
+              />
+            )}
           </TouchableOpacity>
         </View>
-        <Text style={styles.cardDescription}>{item.description}</Text>
-        {item.tags?.length > 0 && (
-            <View style={styles.tagsContainer}>
-              {item.tags.map((tag, index) => (
-                  <View key={index} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-              ))}
-            </View>
+        <Text style={styles.cardDescription}>{item.description || 'Descrição não disponível'}</Text>
+        {item.deadline && <Text style={styles.cardDeadline}>Prazo: {item.deadline}</Text>}
+        {item.tags && item.tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {item.tags.map((tag, index) => (
+              <View key={index} style={styles.tag}>
+                <Text style={styles.tagText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
         )}
         <TouchableOpacity
-            style={styles.detailsButton}
-            onPress={() =>
-                navigation.navigate('TaskStack', {
-                  screen: 'TaskDetail',
-                  params: { task: item },
-                })
-            }
+          style={styles.detailsButton}
+          onPress={() =>
+            navigation.navigate('TaskStack', {
+              screen: 'TaskDetail',
+              params: { task: convertDtoToTask(item) },
+            })
+          }
         >
           <Text style={styles.detailsButtonText}>VER DETALHES</Text>
         </TouchableOpacity>
       </View>
-  );
+    );
+  };
 
   return (
-      <View style={styles.screen}>
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Text style={styles.title}>TASKLY</Text>
-            <Avatar.Image
-                size={45}
-                source={
-                  profile?.picture
-                      ? avatarMap[profile.picture]
-                      : require('../assets/avatars/ellipse1.png')
-                }
-            />
-          </View>
-
-          <TouchableOpacity style={styles.filtro}>
-            <Image source={require('../assets/avatars/filtro.png')} />
-          </TouchableOpacity>
-
-          {isLoading ? (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#583CC4" />
-              </View>
-          ) : tasks.length === 0 ? (
-              <View style={styles.card}>
-                <Image source={require('../assets/avatars/sad.png')} />
-                <Text style={styles.label}>No momento você não possui tarefa</Text>
-                <TouchableOpacity style={styles.buttonEmptyState} onPress={() => setModalVisible(true)}>
-                  <Text style={styles.resolveButtonText}>Criar Tarefas</Text>
-                </TouchableOpacity>
-              </View>
-          ) : (
-              <FlatList
-                  data={tasks}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderTask}
-                  contentContainerStyle={styles.taskList}
-                  showsVerticalScrollIndicator={false}
-              />
-          )}
+    <View style={styles.screen}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>TASKLY</Text>
+          <Avatar.Image
+            size={45}
+            source={{ uri: avatarMap[profile?.picture || 'avatar_1'] }}
+          />
         </View>
 
-        {!isLoading && tasks.length !== 0 && (
-            <TouchableOpacity style={styles.buttonFloating} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={styles.filtro}>
+          <Image
+            source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/filtro.png' }}
+            style={{ width: 20, height: 20 }}
+          />
+        </TouchableOpacity>
+
+        {isLoading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#583CC4" />
+          </View>
+        ) : tasks.length === 0 ? (
+          <View style={styles.card}>
+            <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/sad.png' }}
+                   style={{ width: 120, height: 120 }}
+            />
+            <Text style={styles.label}>No momento você não possui tarefa</Text>
+            <TouchableOpacity style={styles.buttonEmptyState} onPress={() => setModalVisible(true)}>
               <Text style={styles.resolveButtonText}>Criar Tarefas</Text>
             </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={tasks}
+            keyExtractor={(item) => item.id}
+            renderItem={renderTask}
+            contentContainerStyle={styles.taskList}
+            showsVerticalScrollIndicator={false}
+          />
         )}
-
-        <CreateTaskModal
-            visible={modalVisible}
-            onClose={() => setModalVisible(false)}
-            titulo={titulo}
-            descricao={descricao}
-            prazo={prazo}
-            onChangeTitulo={setTitulo}
-            onChangeDescricao={setDescricao}
-            onChangePrazo={setPrazo}
-            onSubmit={handleCreate}
-        />
-
-        {showBiometricModal && biometricCredentials && (
-            <BiometricModal
-                credentials={biometricCredentials}
-                visible={showBiometricModal}
-                onClose={() => setShowBiometricModal(false)}
-            />
-        )}
-
-        <TabBar
-            onClipboardPress={() => console.log('Clipboard')}
-            onBellPress={() => console.log('Bell')}
-            onMenuPress={() => console.log('Menu')}
-        />
       </View>
+
+      {!isLoading && tasks.length !== 0 && (
+        <TouchableOpacity style={styles.buttonFloating} onPress={() => setModalVisible(true)}>
+          <Text style={styles.resolveButtonText}>Criar Tarefas</Text>
+        </TouchableOpacity>
+      )}
+
+      <CreateTaskModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        titulo={titulo}
+        descricao={descricao}
+        prazo={prazo}
+        onChangeTitulo={setTitulo}
+        onChangeDescricao={setDescricao}
+        onChangePrazo={setPrazo}
+        onSubmit={handleCreate}
+      />
+
+      {showBiometricModal && biometricCredentials && (
+        <BiometricModal
+          credentials={biometricCredentials}
+          visible={showBiometricModal}
+          onClose={() => setShowBiometricModal(false)}
+        />
+      )}
+
+      <TabBar
+        onClipboardPress={() => console.log('Clipboard')}
+        onBellPress={() => console.log('Bell')}
+        onMenuPress={() => console.log('Menu')}
+      />
+    </View>
   );
 }
 
@@ -396,6 +430,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4F4F4F',
   },
+  cardDeadline: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
   taskList: {
     gap: 16,
     paddingBottom: 120,
@@ -439,5 +479,3 @@ const styles = StyleSheet.create({
     fontFamily: 'Roboto-Regular',
   },
 });
-
-

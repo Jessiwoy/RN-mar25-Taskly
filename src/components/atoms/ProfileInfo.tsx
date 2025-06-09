@@ -5,17 +5,23 @@ interface ProfileInfoProps {
   name: string;
   email: string;
   phone_number: string;
-  avatarSource: any;
+  avatarSource: string | null;
   isDarkMode: boolean;
 }
 
 export default function ProfileInfo({ name, email, phone_number, avatarSource, isDarkMode }: ProfileInfoProps) {
+  console.log('Avatar Source recebido:', avatarSource);
+
   return (
     <View style={styles.container}>
-      <Image source={avatarSource} style={styles.avatar} resizeMode="cover" />
+      {avatarSource ? (
+        <Image source={{ uri: avatarSource }} style={styles.avatar} resizeMode="cover" />
+      ) : (
+        <View style={[styles.avatar, { backgroundColor: '#ccc' }]} />
+      )}
       <Text style={[styles.name, { color: isDarkMode ? '#FFFFFF' : '#1E1E1E' }]}>{name}</Text>
       <Text style={[styles.infoText, { color: isDarkMode ? '#CCCCCC' : '#666666' }]}>{email}</Text>
-      <Text style={[styles.infoText, { color: isDarkMode ? '#CCCCCC' : '#666666' }]}>(99)999999999</Text>
+      <Text style={[styles.infoText, { color: isDarkMode ? '#CCCCCC' : '#666666' }]}>{phone_number}</Text>
     </View>
   );
 }
@@ -45,4 +51,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

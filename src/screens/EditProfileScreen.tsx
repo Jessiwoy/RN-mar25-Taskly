@@ -73,7 +73,7 @@ export default function EditProfileScreen() {
         <Text style={styles.saveButtonText}>Salvar</Text>
       </TouchableOpacity>
 
-      <FooterNav navigation={navigation} />
+      <FooterNav/>
     </View>
   );
 }

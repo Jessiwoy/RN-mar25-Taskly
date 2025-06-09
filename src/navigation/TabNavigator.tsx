@@ -41,11 +41,7 @@ export default function TabNavigator() {
         tabBarIcon: getTabBarIcon(route.name),
       })}
     >
-      <Tab.Screen name="Clipboard" component={HomePage} />
-      <Tab.Screen name="Notifications" component={NotificationScreen} />
-      <Tab.Screen name="Menu" component={MenuScreen} />
     </Tab.Navigator>
   );
-} 
-
+}
 

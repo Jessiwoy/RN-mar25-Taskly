@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { storage } from '../utils/storage';
+import { profileService } from '../domain/profile/services/profile.service';
 
-const avatarMap: Record<string, any> = {
-  avatar_1: require('../assets/avatars/avatar1.png'),
-  avatar_2: require('../assets/avatars/avatar2.png'),
-  avatar_3: require('../assets/avatars/avatar3.png'),
-  avatar_4: require('../assets/avatars/avatar4.png'),
-  avatar_5: require('../assets/avatars/avatar5.png'),
+const avatarMap: Record<string, string> = {
+  avatar_1: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar1.png',
+  avatar_2: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar2.png',
+  avatar_3: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar3.png',
+  avatar_4: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar4.png',
+  avatar_5: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar5.png',
 };
 
 interface ProfileData {
@@ -18,69 +19,58 @@ interface ProfileData {
 
 export function useUserProfile() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [avatarSource, setAvatarSource] = useState<any>(null);
+  const [avatarSource, setAvatarSource] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfile();
   }, []);
 
+  useEffect(() => {
+    if (profile?.picture) {
+      const avatar = avatarMap[profile.picture] || null;
+      setAvatarSource(avatar);
+    }
+  }, [profile]);
+
   const fetchProfile = async () => {
-    console.log('🔍 Iniciando fetch do perfil...');
     try {
       const token = await storage.getToken();
-      console.log('🔑 Token recuperado:', token);
       if (!token) return;
 
-      const response = await fetch('http://15.229.11.44:3000/profile', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const data = await profileService.getProfile();
+      console.log('✅ Dados recebidos do profileService:', data);
+
+      setProfile({
+        name: data.name,
+        phone_number: data.phone_number,
+        email: data.email,
+        picture: data.picture,
       });
-
-      const data = await response.json();
-      console.log('✅ Dados recebidos do backend:', data);
-
-      setProfile(data);
-
-      const avatar = avatarMap[data.picture] || require('../assets/avatars/ellipse1.png');
-      setAvatarSource(avatar);
     } catch (error) {
       console.error('❌ Erro ao carregar o perfil:', error);
     }
   };
 
- const updateProfile = async (updatedData: { name: string; phone_number: string; email: string }) => {
-  try {
-    const token = await storage.getToken();
-    console.log('🔑 Token usado na atualização:', token);
+  const updateProfile = async (updatedData: { name: string; phone_number: string; email: string }) => {
+    try {
+      const token = await storage.getToken();
 
-    if (!token) throw new Error('Token não encontrado.');
+      if (!token) throw new Error('Token não encontrado.');
 
-    const response = await fetch('http://15.229.11.44:3000/profile', {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updatedData),
-    });
+      await profileService.updateProfile({
+        name: updatedData.name,
+        phone_number: updatedData.phone_number,
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('🔴 Erro de resposta da API:', response.status, errorText);
-      throw new Error('Erro ao atualizar perfil');
+      console.log('✅ Perfil atualizado com sucesso via profileService');
+
+      // Buscar dados atualizados após o update
+      await fetchProfile();
+    } catch (error) {
+      console.error('❌ Erro ao atualizar o perfil:', error);
+      throw error;
     }
-
-    const data = await response.json();
-    console.log('✅ Perfil atualizado com sucesso:', data);
-    setProfile(data);
-  } catch (error) {
-    console.error('❌ Erro ao atualizar o perfil:', error);
-    throw error;
-  }
-};
-
+  };
 
   return { profile, avatarSource, updateProfile };
 }
-
