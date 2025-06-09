@@ -103,12 +103,12 @@ export default function HomePage() {
     verifyAuth();
   }, [verifyAuth]);
 
-  const avatarMap: Record<string, any> = {
-    avatar_1: require('../assets/avatars/avatar1.png'),
-    avatar_2: require('../assets/avatars/avatar2.png'),
-    avatar_3: require('../assets/avatars/avatar3.png'),
-    avatar_4: require('../assets/avatars/avatar4.png'),
-    avatar_5: require('../assets/avatars/avatar5.png'),
+  const avatarMap: Record<string, string> = {
+    avatar_1: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar1.png',
+    avatar_2: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar2.png',
+    avatar_3: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar3.png',
+    avatar_4: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar4.png',
+    avatar_5: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/avatar5.png',
   };
 
   const sendTaskToAPI = async (title: string, description: string, deadline: string) => {
@@ -272,7 +272,7 @@ export default function HomePage() {
           <Text style={styles.title}>TASKLY</Text>
           <Avatar.Image
             size={45}
-            source={profile?.picture ? avatarMap[profile.picture] : require('../assets/avatars/ellipse1.png')}
+            source={{ uri: avatarMap[profile?.picture || 'avatar_1'] }}
           />
         </View>
 
