@@ -238,7 +238,9 @@ export default function TaskDetailScreen() {
                 style={styles.editIcon}
                 onPress={() => navigation.navigate('EditTask', { task: convertDtoToTask(currentTask) })}
               >
-                <Image source={require('../assets/avatars/Vector1.png')} />
+                <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector1.png' }}
+                       style={{ width: 24, height: 24 }}
+                />
               </TouchableOpacity>
 
               <Text style={styles.label1}>Título</Text>
@@ -329,7 +331,8 @@ export default function TaskDetailScreen() {
                       {editingIndex === i ? (
                         <MaterialCommunityIcons name="arrow-right-circle" size={24} color="#32C25B" />
                       ) : (
-                        <Image source={require('../assets/avatars/Vector.png')} />
+                        <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/Vector.png' }}
+                               style={{ width: 24, height: 24 }} />
                       )}
                     </TouchableOpacity>
                   </View>

@@ -277,7 +277,10 @@ export default function HomePage() {
         </View>
 
         <TouchableOpacity style={styles.filtro}>
-          <Image source={require('../assets/avatars/filtro.png')} />
+          <Image
+            source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/filtro.png' }}
+            style={{ width: 20, height: 20 }}
+          />
         </TouchableOpacity>
 
         {isLoading ? (
@@ -286,7 +289,9 @@ export default function HomePage() {
           </View>
         ) : tasks.length === 0 ? (
           <View style={styles.card}>
-            <Image source={require('../assets/avatars/sad.png')} />
+            <Image source={{ uri: 'https://compass-pb-taskly.s3.sa-east-1.amazonaws.com/sad.png' }}
+                   style={{ width: 120, height: 120 }}
+            />
             <Text style={styles.label}>No momento você não possui tarefa</Text>
             <TouchableOpacity style={styles.buttonEmptyState} onPress={() => setModalVisible(true)}>
               <Text style={styles.resolveButtonText}>Criar Tarefas</Text>
